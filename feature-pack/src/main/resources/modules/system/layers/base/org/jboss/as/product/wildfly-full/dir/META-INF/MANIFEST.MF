@@ -1,2 +1,3 @@
 JBoss-Product-Release-Name: WildFly Full
 JBoss-Product-Release-Version: 9.0.0.Alpha2-SNAPSHOT
+JBoss-Product-Icon: /icon/wildfly.png
