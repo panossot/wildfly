@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <parent>
+        <groupId>org.wildfly</groupId>
+        <artifactId>wildfly-ts-integ</artifactId>
+        <version>9.0.0.Alpha2-SNAPSHOT</version>
+    </parent>
+    
+    <groupId>org.wildfly</groupId>
+    <artifactId>wildfly-ts-integ-aop</artifactId>
+    <version>9.0.0.Alpha2-SNAPSHOT</version>
+    
+    <dependencies>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjrt</artifactId>
+            <version>1.8.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+            <version>1.8.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.spec.javax.annotation</groupId>
+            <artifactId>jboss-annotations-api_1.2_spec</artifactId>
+            <version>1.0.1.Final-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/*Test*.java</include>
+                    </includes>
+                    <!--argLine>-javaagent:/home/panos/.m2/repository/org/aspectj/aspectjweaver/1.8.4/aspectjweaver-1.8.4.jar</argLine-->
+                </configuration>
+            </plugin>
+                
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>aspectj-maven-plugin</artifactId>
+                <version>1.5</version>
+                <configuration>
+                    <complianceLevel>1.6</complianceLevel>
+                    <source>1.6</source>
+                    <target>1.6</target>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>compile</goal>       <!-- use this goal to weave all your main classes -->
+                            <goal>test-compile</goal>  <!-- use this goal to weave all your test classes -->
+                        </goals>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.aspectj</groupId>
+                        <artifactId>aspectjtools</artifactId>
+                        <version>1.8.4</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.aspectj</groupId>
+                        <artifactId>aspectjweaver</artifactId>
+                        <version>1.8.4</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <!--plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <mainClass>com.mycompany.aoptest.TestingJBossAop</mainClass>
+                </configuration>
+            </plugin-->
+            
+        </plugins>
+    </build>
+</project>
