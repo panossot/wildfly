@@ -111,19 +111,21 @@ public abstract class AbstractDataSourceService implements Service<DataSource> {
     private final InjectedValue<ResourceAdapterRepository> raRepository = new InjectedValue<ResourceAdapterRepository>();
 
 
+    private final String dsName;
     private final String jndiName;
 
     protected CommonDeployment deploymentMD;
-    private javax.sql.DataSource sqlDataSource;
+    private WildFlyDataSource sqlDataSource;
 
     /**
      * The class loader to use. If null the Driver class loader will be used instead.
      */
     private final ClassLoader classLoader;
 
-    protected AbstractDataSourceService(final String jndiName, final ClassLoader classLoader) {
-        this.jndiName = jndiName;
+    protected AbstractDataSourceService(final String dsName, final String jndiName, final ClassLoader classLoader ) {
+        this.dsName = dsName;
         this.classLoader = classLoader;
+        this.jndiName = jndiName;
     }
 
     public synchronized void start(StartContext startContext) throws StartException {
@@ -134,10 +136,10 @@ public abstract class AbstractDataSourceService implements Service<DataSource> {
             if (deploymentMD.getCfs().length != 1) {
                 throw ConnectorLogger.ROOT_LOGGER.cannotStartDs();
             }
-            sqlDataSource = (javax.sql.DataSource) deploymentMD.getCfs()[0];
+            sqlDataSource = new WildFlyDataSource((javax.sql.DataSource) deploymentMD.getCfs()[0], jndiName);
             DS_DEPLOYER_LOGGER.debugf("Adding datasource: %s", deploymentMD.getCfJndiNames()[0]);
         } catch (Throwable t) {
-            throw ConnectorLogger.ROOT_LOGGER.deploymentError(t, jndiName);
+            throw ConnectorLogger.ROOT_LOGGER.deploymentError(t, dsName);
         }
     }
 
@@ -286,20 +288,23 @@ public abstract class AbstractDataSourceService implements Service<DataSource> {
 
         private final org.jboss.jca.common.api.metadata.ds.DataSource dataSourceConfig;
         private final XaDataSource xaDataSourceConfig;
+        private final String profile;
 
         private ServiceContainer serviceContainer;
 
-        public AS7DataSourceDeployer(XaDataSource xaDataSourceConfig) {
+        public AS7DataSourceDeployer(XaDataSource xaDataSourceConfig, final String profile) {
             super();
             this.xaDataSourceConfig = xaDataSourceConfig;
             this.dataSourceConfig = null;
+            this.profile = profile;
 
         }
 
-        public AS7DataSourceDeployer(org.jboss.jca.common.api.metadata.ds.DataSource dataSourceConfig) {
+        public AS7DataSourceDeployer(org.jboss.jca.common.api.metadata.ds.DataSource dataSourceConfig, final String profile) {
             super();
             this.dataSourceConfig = dataSourceConfig;
             this.xaDataSourceConfig = null;
+            this.profile = profile;
 
         }
 
@@ -316,7 +321,7 @@ public abstract class AbstractDataSourceService implements Service<DataSource> {
                 DataSources dataSources = null;
                 if (dataSourceConfig != null) {
                     String driverName = dataSourceConfig.getDriver();
-                    InstalledDriver installedDriver = driverRegistry.getValue().getInstalledDriver(driverName);
+                    InstalledDriver installedDriver = driverRegistry.getValue().getInstalledDriver(driverName, profile);
                     if (installedDriver != null) {
                         String moduleName = installedDriver.getModuleName() != null ? installedDriver.getModuleName().getName()
                                 : null;
@@ -329,7 +334,7 @@ public abstract class AbstractDataSourceService implements Service<DataSource> {
                     dataSources = new DatasourcesImpl(Arrays.asList(dataSourceConfig), null, drivers);
                 } else if (xaDataSourceConfig != null) {
                     String driverName = xaDataSourceConfig.getDriver();
-                    InstalledDriver installedDriver = driverRegistry.getValue().getInstalledDriver(driverName);
+                    InstalledDriver installedDriver = driverRegistry.getValue().getInstalledDriver(driverName, profile);
                     if (installedDriver != null) {
                         String moduleName = installedDriver.getModuleName() != null ? installedDriver.getModuleName().getName()
                                 : null;
@@ -342,7 +347,7 @@ public abstract class AbstractDataSourceService implements Service<DataSource> {
                     dataSources = new DatasourcesImpl(null, Arrays.asList(xaDataSourceConfig), drivers);
                 }
 
-                CommonDeployment c = createObjectsAndInjectValue(new URL("file://DataSourceDeployment"), jndiName,
+                CommonDeployment c = createObjectsAndInjectValue(new URL("file://DataSourceDeployment"), dsName,
                         "uniqueJdbcLocalId", "uniqueJdbcXAId", dataSources, AbstractDataSourceService.class.getClassLoader());
                 return c;
             } catch (MalformedURLException e) {
@@ -608,7 +613,7 @@ public abstract class AbstractDataSourceService implements Service<DataSource> {
             }
         }
 
-        // Override this method to change how jndiName is build in AS7
+        // Override this method to change how dsName is build in AS7
         @Override
         protected String buildJndiName(String rawJndiName, Boolean javaContext) {
             final String jndiName;

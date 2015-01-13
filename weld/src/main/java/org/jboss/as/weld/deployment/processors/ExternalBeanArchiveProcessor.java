@@ -34,6 +34,7 @@ import java.util.Set;
 import org.jboss.as.ee.component.ComponentDescription;
 import org.jboss.as.ee.component.EEModuleDescription;
 import org.jboss.as.ee.weld.WeldDeploymentMarker;
+import org.jboss.as.ejb3.component.EJBComponentDescription;
 import org.jboss.as.server.deployment.Attachments;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnit;
@@ -87,7 +88,7 @@ public class ExternalBeanArchiveProcessor implements DeploymentUnitProcessor {
             return;
         }
 
-        final Set<String> componentClassNames = new HashSet<>();
+        final Set<String> ejbClassName = new HashSet<>();
 
         final String beanArchiveIdPrefix = deploymentUnit.getName() + ".external.";
 
@@ -117,7 +118,9 @@ public class ExternalBeanArchiveProcessor implements DeploymentUnitProcessor {
             EEModuleDescription moduleDesc = deployment.getAttachment(org.jboss.as.ee.component.Attachments.EE_MODULE_DESCRIPTION);
             if(moduleDesc != null) {
                 for(ComponentDescription component : moduleDesc.getComponentDescriptions()) {
-                    componentClassNames.add(component.getComponentClassName());
+                    if(component instanceof EJBComponentDescription) {
+                        ejbClassName.add(component.getComponentClassName());
+                    }
                 }
             }
         }
@@ -132,59 +135,78 @@ public class ExternalBeanArchiveProcessor implements DeploymentUnitProcessor {
                 if (dependency == null) {
                     continue;
                 }
-                URL url = findExportedLocalBeansXml(dependency);
-                if (url != null && !existing.contains(url)) {
-                    /*
-                     * Workaround for http://java.net/jira/browse/JAVASERVERFACES-2837
-                     */
-                    if (url.toString().contains("jsf-impl-2.2")) {
-                        continue;
+                Set<URL> urls = findExportedLocalBeansXml(dependency);
+                if (urls != null) {
+                    List<BeanDeploymentArchiveImpl> moduleBdas = new ArrayList<>();
+                    for (URL url : urls) {
+                        if (existing.contains(url)) {
+                            continue;
+                        }
+                        /*
+                         * Workaround for http://java.net/jira/browse/JAVASERVERFACES-2837
+                         */
+                        if (url.toString().contains("jsf-impl-2.2")) {
+                            continue;
+                        }
+                        /*
+                         * Workaround for resteasy-cdi bundling beans.xml
+                         */
+                        if (url.toString().contains("resteasy-cdi")) {
+                            continue;
+                        }
+
+                        WeldLogger.DEPLOYMENT_LOGGER.debugf("Found external beans.xml: %s", url.toString());
+                        final BeansXml beansXml = parseBeansXml(url, parser, deploymentUnit);
+
+                        final UrlScanner urlScanner = new UrlScanner();
+
+                        final List<String> discoveredClasses = new ArrayList<String>();
+                        if (!urlScanner.handleBeansXml(url, discoveredClasses)) {
+                            continue;
+                        }
+                        discoveredClasses.removeAll(ejbClassName);
+
+                        final BeanDeploymentArchiveImpl bda = new BeanDeploymentArchiveImpl(new HashSet<String>(discoveredClasses), beansXml, dependency, beanArchiveIdPrefix + url.toExternalForm(), BeanArchiveType.EXTERNAL);
+                        WeldLogger.DEPLOYMENT_LOGGER.beanArchiveDiscovered(bda);
+
+                        final JpaInjectionServices jpaInjectionServices = new WeldJpaInjectionServices(deploymentUnit);
+                        final JaxwsInjectionServices jaxwsInjectionServices = new WeldJaxwsInjectionServices(deploymentUnit);
+                        bda.getServices().add(JpaInjectionServices.class, jpaInjectionServices);
+                        bda.getServices().add(JaxwsInjectionServices.class, jaxwsInjectionServices);
+                        deploymentUnit.addToAttachmentList(WeldAttachments.ADDITIONAL_BEAN_DEPLOYMENT_MODULES, bda);
+                        moduleBdas.add(bda);
+
+                        // make sure that if this beans.xml is seen by some other module, it is not processed twice
+                        existing.add(url);
                     }
-                    /*
-                     * Workaround for resteasy-cdi bundling beans.xml
-                     */
-                    if (url.toString().contains("resteasy-cdi")) {
-                        continue;
+                    //BDA's from inside the same module have visibility on each other
+                    for(BeanDeploymentArchiveImpl i : moduleBdas) {
+                        for(BeanDeploymentArchiveImpl j : moduleBdas) {
+                            if(i != j) {
+                                i.addBeanDeploymentArchive(j);
+                            }
+                        }
                     }
-
-                    WeldLogger.DEPLOYMENT_LOGGER.debugf("Found external beans.xml: %s", url.toString());
-                    final BeansXml beansXml = parseBeansXml(url, parser, deploymentUnit);
-
-                    final UrlScanner urlScanner = new UrlScanner();
-
-                    final List<String> discoveredClasses = new ArrayList<String>();
-                    if(!urlScanner.handleBeansXml(url, discoveredClasses)) {
-                        continue;
-                    }
-                    discoveredClasses.removeAll(componentClassNames);
-
-                    final BeanDeploymentArchiveImpl bda = new BeanDeploymentArchiveImpl(new HashSet<String>(discoveredClasses), beansXml, dependency, beanArchiveIdPrefix + url.toExternalForm(), BeanArchiveType.EXTERNAL);
-                    WeldLogger.DEPLOYMENT_LOGGER.beanArchiveDiscovered(bda);
-
-                    final JpaInjectionServices jpaInjectionServices = new WeldJpaInjectionServices(deploymentUnit);
-                    final JaxwsInjectionServices jaxwsInjectionServices = new WeldJaxwsInjectionServices(deploymentUnit);
-                    bda.getServices().add(JpaInjectionServices.class, jpaInjectionServices);
-                    bda.getServices().add(JaxwsInjectionServices.class, jaxwsInjectionServices);
-                    deploymentUnit.addToAttachmentList(WeldAttachments.ADDITIONAL_BEAN_DEPLOYMENT_MODULES, bda);
-
-                    // make sure that if this beans.xml is seen by some other module, it is not processed twice
-                    existing.add(url);
                 }
             }
         }
     }
 
-    private URL findExportedLocalBeansXml(Module dependencyModule) {
+    private Set<URL> findExportedLocalBeansXml(Module dependencyModule) {
+        HashSet<URL> ret = new HashSet<>();
         Enumeration<URL> exported = dependencyModule.getExportedResources(META_INF_BEANS_XML);
         if (exported.hasMoreElements()) {
             Set<URL> exportedSet = new HashSet<>(Collections.list(exported));
 
             Collection<Resource> locals = dependencyModule.getClassLoader().loadResourceLocal(META_INF_BEANS_XML);
             if (!locals.isEmpty()) {
-                URL local = locals.iterator().next().getURL();
-                if (exportedSet.contains(local)) {
-                    return local;
+                for(Resource local: locals) {
+                    URL url = local.getURL();
+                    if (exportedSet.contains(url)) {
+                        ret.add(url);
+                    }
                 }
+                return ret;
             }
         }
         return null;

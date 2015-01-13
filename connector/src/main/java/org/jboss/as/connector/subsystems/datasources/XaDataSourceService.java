@@ -38,12 +38,12 @@ public class XaDataSourceService extends AbstractDataSourceService {
 
     private final InjectedValue<ModifiableXaDataSource> dataSourceConfig = new InjectedValue<ModifiableXaDataSource>();
 
-    public XaDataSourceService(final String jndiName, final ClassLoader classLoader) {
-        super(jndiName, classLoader);
+    public XaDataSourceService(final String dsName, final String jndiName, final ClassLoader classLoader) {
+        super(dsName, jndiName, classLoader);
     }
 
-    public XaDataSourceService(final String jndiName) {
-        this(jndiName, null);
+    public XaDataSourceService(final String dsName, final String jndiName) {
+        this(dsName, jndiName, null);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class XaDataSourceService extends AbstractDataSourceService {
 
     @Override
     public AS7DataSourceDeployer getDeployer() throws ValidateException {
-        return new AS7DataSourceDeployer(dataSourceConfig.getValue().getUnModifiableInstance());
+        return new AS7DataSourceDeployer(dataSourceConfig.getValue().getUnModifiableInstance(), dataSourceConfig.getValue().getProfile());
     }
 
     public Injector<ModifiableXaDataSource> getDataSourceConfigInjector() {

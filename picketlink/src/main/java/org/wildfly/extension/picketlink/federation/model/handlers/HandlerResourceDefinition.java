@@ -22,13 +22,19 @@
 
 package org.wildfly.extension.picketlink.federation.model.handlers;
 
+import org.jboss.as.controller.OperationContext;
+import org.jboss.as.controller.OperationFailedException;
 import org.jboss.as.controller.SimpleAttributeDefinition;
 import org.jboss.as.controller.SimpleAttributeDefinitionBuilder;
 import org.jboss.as.controller.operations.validation.EnumValidator;
 import org.jboss.as.controller.registry.ManagementResourceRegistration;
+import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
 import org.wildfly.extension.picketlink.common.model.ModelElement;
+import org.wildfly.extension.picketlink.common.model.validator.UniqueTypeValidationStepHandler;
 import org.wildfly.extension.picketlink.federation.model.AbstractFederationResourceDefinition;
+
+import static org.wildfly.extension.picketlink.logging.PicketLinkLogger.ROOT_LOGGER;
 
 /**
  * @author <a href="mailto:psilva@redhat.com">Pedro Silva</a>
@@ -56,5 +62,28 @@ public class HandlerResourceDefinition extends AbstractFederationResourceDefinit
     @Override
     public void registerChildren(ManagementResourceRegistration resourceRegistration) {
         addChildResourceDefinition(HandlerParameterResourceDefinition.INSTANCE, resourceRegistration);
+    }
+
+    @Override
+    protected void doRegisterModelWriteAttributeHandler(OperationContext context, ModelNode operation) {
+        context.addStep(new UniqueTypeValidationStepHandler(ModelElement.COMMON_HANDLER) {
+            @Override
+            protected String getType(OperationContext context, ModelNode model) throws OperationFailedException {
+                return getHandlerType(context, model);
+            }
+        }, OperationContext.Stage.MODEL);
+    }
+
+    public static String getHandlerType(OperationContext context, ModelNode elementNode) throws OperationFailedException {
+        ModelNode classNameNode = CLASS_NAME.resolveModelAttribute(context, elementNode);
+        ModelNode codeNode = CODE.resolveModelAttribute(context, elementNode);
+
+        if (classNameNode.isDefined()) {
+            return classNameNode.asString();
+        } else if (codeNode.isDefined()) {
+            return HandlerTypeEnum.forType(codeNode.asString());
+        } else {
+            throw ROOT_LOGGER.federationHandlerTypeNotProvided();
+        }
     }
 }

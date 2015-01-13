@@ -25,14 +25,22 @@ package org.jboss.as.security.remoting;
 import java.io.IOException;
 import java.security.Principal;
 import java.security.acl.Group;
+import java.util.Map;
 
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
+import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.callback.NameCallback;
 import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.security.auth.login.LoginException;
 
+import org.jboss.as.core.security.RealmUser;
+import org.jboss.as.core.security.SubjectUserInfo;
 import org.jboss.as.security.logging.SecurityLogger;
 import org.jboss.remoting3.Connection;
+import org.jboss.remoting3.security.UserInfo;
 import org.jboss.remoting3.security.UserPrincipal;
 import org.jboss.security.SimpleGroup;
 import org.jboss.security.auth.callback.ObjectCallback;
@@ -50,7 +58,28 @@ public class RemotingLoginModule extends AbstractServerLoginModule {
 
     private static final SecurityLogger log = SecurityLogger.ROOT_LOGGER;
 
+    /**
+     * If a {@link X509Certificate} is available from the client as a result of a {@link SSLSession} being established should
+     * this be used for the credential.
+     *
+     * Default = false.
+     */
+    private static final String USE_CLIENT_CERT_OPTION = "useClientCert";
+
+    private static final String[] ALL_OPTIONS = new String[] { USE_CLIENT_CERT_OPTION };
+
+    private boolean useClientCert = false;
     private Principal identity;
+
+    @Override
+    public void initialize(Subject subject, CallbackHandler callbackHandler, Map<String, ?> sharedState, Map<String, ?> options) {
+        addValidOptions(ALL_OPTIONS);
+        super.initialize(subject, callbackHandler, sharedState, options);
+
+        if (options.containsKey(USE_CLIENT_CERT_OPTION)) {
+            useClientCert = Boolean.parseBoolean(options.get(USE_CLIENT_CERT_OPTION).toString());
+        }
+    }
 
     @SuppressWarnings("unchecked")
     @Override
@@ -63,22 +92,47 @@ public class RemotingLoginModule extends AbstractServerLoginModule {
         Object credential = getCredential();
         if (credential instanceof RemotingConnectionCredential) {
             Connection con = ((RemotingConnectionCredential) credential).getConnection();
-            UserPrincipal up = null;
-            for (Principal current : con.getPrincipals()) {
-                if (current instanceof UserPrincipal) {
-                    up = (UserPrincipal) current;
-                    break;
+            Principal up = null;
+
+            UserInfo userInfo = con.getUserInfo();
+            if (userInfo instanceof SubjectUserInfo) {
+                for (Principal current : ((SubjectUserInfo) userInfo).getPrincipals()) {
+                    if (current instanceof RealmUser) {
+                        up = current;
+                        break;
+                    }
                 }
             }
+
+            if (up == null) {
+                for (Principal current : con.getPrincipals()) {
+                    if (current instanceof UserPrincipal) {
+                        up = current;
+                        break;
+                    }
+                }
+            }
+
             // If we found a principal from the connection then authentication succeeded.
             if (up != null) {
                 identity = up;
                 if (getUseFirstPass()) {
                     String userName = identity.getName();
-                    if (log.isDebugEnabled())
-                        log.debug("Storing username '" + userName + "' and empty password");
-                    // Add the username and an empty password to the shared state map
+                    log.debugf("Storing username '%s'", userName);
+                    // Add the username to the shared state map
                     sharedState.put("javax.security.auth.login.name", identity);
+
+                    if (useClientCert) {
+                        SSLSession session = con.getSslSession();
+                        if (session != null) {
+                            try {
+                                credential = session.getPeerCertificateChain()[0];
+                                log.debug("Using certificate as credential.");
+                            } catch (SSLPeerUnverifiedException e) {
+                                log.debugf("No peer certificate available for '%s'", userName);
+                            }
+                        }
+                    }
                     sharedState.put("javax.security.auth.login.password", credential);
                 }
                 loginOk = true;

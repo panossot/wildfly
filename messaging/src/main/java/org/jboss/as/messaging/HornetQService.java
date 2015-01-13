@@ -44,12 +44,12 @@ import org.hornetq.core.remoting.impl.netty.TransportConstants;
 import org.hornetq.core.server.HornetQServer;
 import org.hornetq.core.server.JournalType;
 import org.hornetq.core.server.impl.HornetQServerImpl;
-import org.jboss.as.clustering.jgroups.ChannelFactory;
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import org.jboss.as.controller.services.path.AbsolutePathService;
 import org.jboss.as.controller.services.path.PathManager;
+import org.jboss.as.network.ManagedBinding;
 import org.jboss.as.network.NetworkUtils;
 import org.jboss.as.messaging.logging.MessagingLogger;
 import org.jboss.as.network.OutboundSocketBinding;
@@ -66,6 +66,7 @@ import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
 import org.jgroups.JChannel;
+import org.wildfly.clustering.jgroups.spi.ChannelFactory;
 import org.wildfly.security.manager.WildFlySecurityManager;
 
 /**
@@ -200,7 +201,8 @@ class HornetQService implements Service<HornetQServer> {
                                         NetworkUtils.canonize(binding.getSourceAddress().getHostAddress()));
                             }
                             if (binding.getSourcePort() != null) {
-                                tc.getParams().put(TransportConstants.LOCAL_PORT_PROP_NAME, binding.getSourcePort());
+                                // Use absolute port to account for source port offset/fixation
+                                tc.getParams().put(TransportConstants.LOCAL_PORT_PROP_NAME, binding.getAbsoluteSourcePort());
                             }
                         }
                         tc.getParams().put(HOST, host);
@@ -218,6 +220,7 @@ class HornetQService implements Service<HornetQServer> {
                         if (binding == null) {
                             throw MessagingLogger.ROOT_LOGGER.failedToFindConnectorSocketBinding(tc.getName());
                         }
+                        binding.getSocketBindings().getNamedRegistry().registerBinding(ManagedBinding.Factory.createSimpleManagedBinding(binding));
                         InetSocketAddress socketAddress = binding.getSocketAddress();
                         tc.getParams().put(HOST, socketAddress.getAddress().getHostAddress());
                         tc.getParams().put(PORT, "" + socketAddress.getPort());
@@ -242,7 +245,8 @@ class HornetQService implements Service<HornetQServer> {
                         if (binding == null) {
                             throw MessagingLogger.ROOT_LOGGER.failedToFindBroadcastSocketBinding(name);
                         }
-                       newConfigs.add(BroadcastGroupAdd.createBroadcastGroupConfiguration(name, config, binding));
+                        binding.getSocketBindings().getNamedRegistry().registerBinding(ManagedBinding.Factory.createSimpleManagedBinding(binding));
+                        newConfigs.add(BroadcastGroupAdd.createBroadcastGroupConfiguration(name, config, binding));
                     }
                 }
                 configuration.getBroadcastGroupConfigurations().clear();
@@ -269,6 +273,7 @@ class HornetQService implements Service<HornetQServer> {
                             throw MessagingLogger.ROOT_LOGGER.failedToFindDiscoverySocketBinding(name);
                         }
                         config = DiscoveryGroupAdd.createDiscoveryGroupConfiguration(name, entry.getValue(), binding);
+                        binding.getSocketBindings().getNamedRegistry().registerBinding(ManagedBinding.Factory.createSimpleManagedBinding(binding));
                     }
                     configuration.getDiscoveryGroupConfigurations().put(name, config);
                 }
@@ -301,6 +306,13 @@ class HornetQService implements Service<HornetQServer> {
             if (server != null) {
                 // FIXME stopped by the JMSService
                 // server.stop();
+
+                for (SocketBinding binding : socketBindings.values()) {
+                    binding.getSocketBindings().getNamedRegistry().unregisterBinding(binding.getName());
+                }
+                for (SocketBinding binding : groupBindings.values()) {
+                    binding.getSocketBindings().getNamedRegistry().unregisterBinding(binding.getName());
+                }
             }
             pathConfig.closeCallbacks(pathManager.getValue());
         } catch (Exception e) {

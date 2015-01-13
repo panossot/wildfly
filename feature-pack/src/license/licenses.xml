@@ -126,7 +126,7 @@
     </dependency>
     <dependency>
       <groupId>commons-beanutils</groupId>
-      <artifactId>commons-beanutils</artifactId>
+      <artifactId>commons-beanutils-core</artifactId>
       <licenses>
         <license>
           <name>Apache Software License, Version 2.0</name>
@@ -3213,17 +3213,6 @@
         <license>
           <name>GNU Lesser General Public License, Version 2.1</name>
           <url>http://repository.jboss.org/licenses/lgpl-2.1.txt</url>
-        </license>
-      </licenses>
-    </dependency>
-    <dependency>
-      <groupId>org.osgi</groupId>
-      <artifactId>org.osgi.core</artifactId>
-      <licenses>
-        <license>
-          <name>Apache Software License, Version 2.0</name>
-          <url>http://repository.jboss.org/licenses/apache-2.0.txt</url>
-          <distribution>repo</distribution>
         </license>
       </licenses>
     </dependency>

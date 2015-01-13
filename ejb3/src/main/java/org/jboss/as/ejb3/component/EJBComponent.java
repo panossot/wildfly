@@ -23,6 +23,14 @@ package org.jboss.as.ejb3.component;
 
 import static org.jboss.as.ejb3.logging.EjbLogger.ROOT_LOGGER;
 
+import java.lang.reflect.Method;
+import java.security.AccessController;
+import java.security.Principal;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedExceptionAction;
+import java.util.Collections;
+import java.util.Map;
+
 import javax.ejb.EJBHome;
 import javax.ejb.EJBLocalHome;
 import javax.ejb.TimerService;
@@ -37,23 +45,18 @@ import javax.transaction.TransactionManager;
 import javax.transaction.TransactionSynchronizationRegistry;
 import javax.transaction.UserTransaction;
 
-import java.lang.reflect.Method;
-import java.security.AccessController;
-import java.security.Principal;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedExceptionAction;
-import java.util.Collections;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jboss.as.core.security.ServerSecurityManager;
 import org.jboss.as.ee.component.BasicComponent;
 import org.jboss.as.ee.component.ComponentView;
-import org.jboss.as.ejb3.logging.EjbLogger;
 import org.jboss.as.ejb3.component.allowedmethods.AllowedMethodsInformation;
 import org.jboss.as.ejb3.component.invocationmetrics.InvocationMetrics;
 import org.jboss.as.ejb3.context.CurrentInvocationContext;
+import org.jboss.as.ejb3.logging.EjbLogger;
 import org.jboss.as.ejb3.remote.EJBRemoteTransactionsRepository;
 import org.jboss.as.ejb3.security.EJBSecurityMetaData;
+import org.jboss.as.ejb3.timerservice.TimerServiceImpl;
 import org.jboss.as.ejb3.tx.ApplicationExceptionDetails;
 import org.jboss.as.naming.ManagedReference;
 import org.jboss.as.naming.context.NamespaceContextSelector;
@@ -108,6 +111,7 @@ public abstract class EJBComponent extends BasicComponent implements ServerActiv
     private final UserTransaction userTransaction;
     private final ServerSecurityManager serverSecurityManager;
     private final ControlPoint controlPoint;
+    private final AtomicBoolean exceptionLoggingEnabled;
 
     private final PrivilegedAction<Principal> getCaller = new PrivilegedAction<Principal>() {
         @Override
@@ -164,6 +168,7 @@ public abstract class EJBComponent extends BasicComponent implements ServerActiv
         this.userTransaction = ejbComponentCreateService.getUserTransaction();
         this.serverSecurityManager = ejbComponentCreateService.getServerSecurityManager();
         this.controlPoint = ejbComponentCreateService.getControlPoint();
+        this.exceptionLoggingEnabled = ejbComponentCreateService.getExceptionLoggingEnabled();
     }
 
     protected <T> T createViewInstanceProxy(final Class<T> viewInterface, final Map<Object, Object> contextData) {
@@ -441,7 +446,7 @@ public abstract class EJBComponent extends BasicComponent implements ServerActiv
         } else {
             throw EjbLogger.ROOT_LOGGER.failToLookupJNDINameSpace(name);
         }
-        ROOT_LOGGER.debug("Looking up " + namespaceStrippedJndiName + " in jndi context: " + jndiContext);
+        ROOT_LOGGER.debugf("Looking up %s in jndi context: %s", namespaceStrippedJndiName, jndiContext);
         try {
             return jndiContext.lookup(namespaceStrippedJndiName);
         } catch (NamingException ne) {
@@ -539,6 +544,9 @@ public abstract class EJBComponent extends BasicComponent implements ServerActiv
         if (this.controlPoint != null) {
             this.controlPoint.resume();
         }
+        if(this.timerService instanceof TimerServiceImpl) {
+            ((TimerServiceImpl) this.timerService).activate();
+        }
     }
 
     @Override
@@ -546,11 +554,19 @@ public abstract class EJBComponent extends BasicComponent implements ServerActiv
         if (this.controlPoint != null) {
             this.controlPoint.pause(this);
         }
+        if(this.timerService instanceof TimerServiceImpl) {
+            ((TimerServiceImpl) this.timerService).deactivate();
+        }
         this.done();
     }
 
     @Override
     public void done() {
         super.stop();
+    }
+
+
+    public boolean isExceptionLoggingEnabled() {
+        return exceptionLoggingEnabled.get();
     }
 }

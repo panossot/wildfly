@@ -27,6 +27,7 @@ import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.ENA
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.NAME;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.OP;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.OP_ADDR;
+import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.PROFILE;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.STEPS;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.VALUE;
 
@@ -233,6 +234,10 @@ public class Constants {
             .setAllowNull(true)
             .build();
 
+    static final SimpleAttributeDefinition PROFILE = SimpleAttributeDefinitionBuilder.create("profile", ModelType.STRING)
+                .setAllowNull(true)
+                .build();
+
     static final String STATISTICS = "statistics";
 
 
@@ -265,6 +270,8 @@ public class Constants {
                             String str = value.asString();
                             if (!str.startsWith("java:/") && !str.startsWith("java:jboss/")) {
                                 throw ConnectorLogger.ROOT_LOGGER.jndiNameInvalidFormat();
+                            } else if (str.endsWith("/") || str.indexOf("//") != -1) {
+                                throw ConnectorLogger.ROOT_LOGGER.jndiNameShouldValidate();
                             }
                         }
                     } else {
@@ -316,7 +323,7 @@ public class Constants {
 
     static SimpleAttributeDefinition ENABLED = new SimpleAttributeDefinitionBuilder(ENABLED_NAME, ModelType.BOOLEAN)
             .setXmlName(DataSource.Attribute.ENABLED.getLocalName())
-            .setAllowExpression(false)
+            .setAllowExpression(true)
             .setDefaultValue(new ModelNode(Defaults.ENABLED))
             .setAllowNull(true)
             .build();
@@ -748,7 +755,8 @@ public class Constants {
             XA_DATASOURCE_CLASS,
             DRIVER_MAJOR_VERSION,
             DRIVER_MINOR_VERSION,
-            JDBC_COMPLIANT
+            JDBC_COMPLIANT,
+            PROFILE
     };
 
 

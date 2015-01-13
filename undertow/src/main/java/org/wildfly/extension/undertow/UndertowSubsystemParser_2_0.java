@@ -46,6 +46,7 @@ import org.wildfly.extension.undertow.filters.ConnectionLimitHandler;
 import org.wildfly.extension.undertow.filters.FilterDefinitions;
 import org.wildfly.extension.undertow.filters.FilterRefDefinition;
 import org.wildfly.extension.undertow.filters.GzipFilter;
+import org.wildfly.extension.undertow.filters.ModClusterDefinition;
 import org.wildfly.extension.undertow.filters.ResponseHeaderFilter;
 import org.wildfly.extension.undertow.handlers.FileHandler;
 import org.wildfly.extension.undertow.handlers.HandlerDefinitions;
@@ -77,7 +78,7 @@ public class UndertowSubsystemParser_2_0 implements XMLStreamConstants, XMLEleme
                                         .addAttributes(ListenerResourceDefinition.MAX_HEADER_SIZE, ListenerResourceDefinition.MAX_ENTITY_SIZE,
                                                 ListenerResourceDefinition.BUFFER_PIPELINED_DATA, ListenerResourceDefinition.MAX_PARAMETERS, ListenerResourceDefinition.MAX_HEADERS, ListenerResourceDefinition.MAX_COOKIES,ListenerResourceDefinition.ALLOW_ENCODED_SLASH, ListenerResourceDefinition.DECODE_URL,
                                                 ListenerResourceDefinition.URL_CHARSET, ListenerResourceDefinition.ALWAYS_SET_KEEP_ALIVE, ListenerResourceDefinition.MAX_BUFFERED_REQUEST_SIZE, ListenerResourceDefinition.RECORD_REQUEST_START_TIME,
-                                                ListenerResourceDefinition.ALLOW_EQUALS_IN_COOKIE_VALUE)
+                                                ListenerResourceDefinition.ALLOW_EQUALS_IN_COOKIE_VALUE, ListenerResourceDefinition.NO_REQUEST_TIMEOUT, ListenerResourceDefinition.REQUEST_PARSE_TIMEOUT)
                                         .addAttributes(ListenerResourceDefinition.BACKLOG, ListenerResourceDefinition.RECEIVE_BUFFER, ListenerResourceDefinition.SEND_BUFFER, ListenerResourceDefinition.KEEP_ALIVE, ListenerResourceDefinition.READ_TIMEOUT, ListenerResourceDefinition.WRITE_TIMEOUT)
                         )
                         .addChild(
@@ -87,7 +88,7 @@ public class UndertowSubsystemParser_2_0 implements XMLStreamConstants, XMLEleme
                                         .addAttributes(ListenerResourceDefinition.MAX_HEADER_SIZE, ListenerResourceDefinition.MAX_ENTITY_SIZE,
                                                 ListenerResourceDefinition.BUFFER_PIPELINED_DATA, ListenerResourceDefinition.MAX_PARAMETERS, ListenerResourceDefinition.MAX_HEADERS, ListenerResourceDefinition.MAX_COOKIES,ListenerResourceDefinition.ALLOW_ENCODED_SLASH, ListenerResourceDefinition.DECODE_URL,
                                                 ListenerResourceDefinition.URL_CHARSET, ListenerResourceDefinition.ALWAYS_SET_KEEP_ALIVE, ListenerResourceDefinition.MAX_BUFFERED_REQUEST_SIZE, ListenerResourceDefinition.RECORD_REQUEST_START_TIME,
-                                                ListenerResourceDefinition.ALLOW_EQUALS_IN_COOKIE_VALUE)
+                                                ListenerResourceDefinition.ALLOW_EQUALS_IN_COOKIE_VALUE, ListenerResourceDefinition.NO_REQUEST_TIMEOUT, ListenerResourceDefinition.REQUEST_PARSE_TIMEOUT)
                                         .addAttributes(ListenerResourceDefinition.BACKLOG, ListenerResourceDefinition.RECEIVE_BUFFER, ListenerResourceDefinition.SEND_BUFFER, ListenerResourceDefinition.KEEP_ALIVE, ListenerResourceDefinition.READ_TIMEOUT, ListenerResourceDefinition.WRITE_TIMEOUT)
                         ).addChild(
                                         builder(HttpsListenerResourceDefinition.INSTANCE)
@@ -97,7 +98,7 @@ public class UndertowSubsystemParser_2_0 implements XMLStreamConstants, XMLEleme
                                                 .addAttributes(ListenerResourceDefinition.MAX_HEADER_SIZE, ListenerResourceDefinition.MAX_ENTITY_SIZE,
                                                         ListenerResourceDefinition.BUFFER_PIPELINED_DATA, ListenerResourceDefinition.MAX_PARAMETERS, ListenerResourceDefinition.MAX_HEADERS, ListenerResourceDefinition.MAX_COOKIES, ListenerResourceDefinition.ALLOW_ENCODED_SLASH, ListenerResourceDefinition.DECODE_URL,
                                                         ListenerResourceDefinition.URL_CHARSET, ListenerResourceDefinition.ALWAYS_SET_KEEP_ALIVE, ListenerResourceDefinition.MAX_BUFFERED_REQUEST_SIZE, ListenerResourceDefinition.RECORD_REQUEST_START_TIME,
-                                                        ListenerResourceDefinition.ALLOW_EQUALS_IN_COOKIE_VALUE)
+                                                        ListenerResourceDefinition.ALLOW_EQUALS_IN_COOKIE_VALUE, ListenerResourceDefinition.NO_REQUEST_TIMEOUT, ListenerResourceDefinition.REQUEST_PARSE_TIMEOUT)
                                                 .addAttributes(ListenerResourceDefinition.BACKLOG, ListenerResourceDefinition.RECEIVE_BUFFER, ListenerResourceDefinition.SEND_BUFFER, ListenerResourceDefinition.KEEP_ALIVE, ListenerResourceDefinition.READ_TIMEOUT, ListenerResourceDefinition.WRITE_TIMEOUT)
                                 ).addChild(
                                         builder(HostDefinition.INSTANCE)
@@ -131,6 +132,7 @@ public class UndertowSubsystemParser_2_0 implements XMLStreamConstants, XMLEleme
                                 .addAttribute(ServletContainerDefinition.IGNORE_FLUSH)
                                 .addAttribute(ServletContainerDefinition.EAGER_FILTER_INIT)
                                 .addAttribute(ServletContainerDefinition.DEFAULT_SESSION_TIMEOUT)
+                                .addAttribute(ServletContainerDefinition.DISABLE_CACHING_FOR_SECURED_PAGES)
                                 .addChild(
                                         builder(JspDefinition.INSTANCE)
                                                 .setXmlElementName(Constants.JSP_CONFIG)
@@ -171,6 +173,14 @@ public class UndertowSubsystemParser_2_0 implements XMLStreamConstants, XMLEleme
                                                 .addAttributes(
                                                         PersistentSessionsDefinition.PATH,
                                                         PersistentSessionsDefinition.RELATIVE_TO
+                                                )
+                                )
+                                .addChild(
+                                        builder(WebsocketsDefinition.INSTANCE)
+                                                .addAttributes(
+                                                        WebsocketsDefinition.WORKER,
+                                                        WebsocketsDefinition.BUFFER_POOL,
+                                                        WebsocketsDefinition.DISPATCH_TO_WORKER
                                                 )
                                 )
                 )
@@ -219,6 +229,16 @@ public class UndertowSubsystemParser_2_0 implements XMLStreamConstants, XMLEleme
                         ).addChild(
                                 builder(ErrorPageDefinition.INSTANCE)
                                         .addAttributes(ErrorPageDefinition.CODE, ErrorPageDefinition.PATH)
+                        ).addChild(
+                                builder(ModClusterDefinition.INSTANCE)
+                                .addAttributes(ModClusterDefinition.MANAGEMENT_SOCKET_BINDING,
+                                        ModClusterDefinition.ADVERTISE_SOCKET_BINDING,
+                                        ModClusterDefinition.SECURITY_KEY,
+                                        ModClusterDefinition.ADVERTISE_PROTOCOL,
+                                        ModClusterDefinition.ADVERTISE_PATH,
+                                        ModClusterDefinition.ADVERTISE_FREQUENCY,
+                                        ModClusterDefinition.HEALTH_CHECK_INTERVAL,
+                                        ModClusterDefinition.BROKEN_NODE_TIMEOUT)
                         ).addChild(
                                 builder(CustomFilterDefinition.INSTANCE)
                                         .addAttributes(CustomFilterDefinition.CLASS_NAME, CustomFilterDefinition.MODULE, CustomFilterDefinition.PARAMETERS)

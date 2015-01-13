@@ -30,14 +30,15 @@ import org.jboss.as.controller.AttributeDefinition;
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
 import org.jboss.as.controller.PathAddress;
-import org.jboss.as.controller.ServiceVerificationHandler;
 import org.jboss.as.controller.registry.Resource;
 import org.jboss.dmr.ModelNode;
 import org.jboss.msc.service.ServiceBuilder;
 import org.jboss.msc.service.ServiceController;
 import org.jboss.msc.service.ServiceTarget;
-
-import java.util.List;
+import org.jboss.msc.value.InjectedValue;
+import org.wildfly.extension.io.IOServices;
+import org.xnio.Pool;
+import org.xnio.XnioWorker;
 
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.OP_ADDR;
 
@@ -58,15 +59,15 @@ final class ServletContainerAdd extends AbstractBoottimeAddStepHandler {
     }
 
     @Override
-    protected void performBoottime(OperationContext context, ModelNode operation, final ModelNode model, ServiceVerificationHandler verificationHandler, List<ServiceController<?>> newControllers) throws OperationFailedException {
+    protected void performBoottime(OperationContext context, ModelNode operation, Resource resource) throws OperationFailedException {
         final PathAddress address = PathAddress.pathAddress(operation.get(OP_ADDR));
         final String name = address.getLastElement().getValue();
 
-        installRuntimeServices(context, model, newControllers, name);
+        installRuntimeServices(context, resource.getModel(), name);
 
     }
 
-    public void installRuntimeServices(OperationContext context, ModelNode model, List<ServiceController<?>> newControllers, String name) throws OperationFailedException {
+    public void installRuntimeServices(OperationContext context, ModelNode model, String name) throws OperationFailedException {
         final ModelNode fullModel = Resource.Tools.readModel(context.readResource(PathAddress.EMPTY_ADDRESS));
 
         final SessionCookieConfig config = SessionCookieDefinition.INSTANCE.getConfig(context, fullModel.get(SessionCookieDefinition.INSTANCE.getPathElement().getKeyValuePair()));
@@ -82,8 +83,11 @@ final class ServletContainerAdd extends AbstractBoottimeAddStepHandler {
         final boolean useListenerEncoding = ServletContainerDefinition.USE_LISTENER_ENCODING.resolveModelAttribute(context, model).asBoolean();
         final boolean ignoreFlush = ServletContainerDefinition.IGNORE_FLUSH.resolveModelAttribute(context, model).asBoolean();
         final boolean eagerFilterInit = ServletContainerDefinition.EAGER_FILTER_INIT.resolveModelAttribute(context, model).asBoolean();
+        final boolean disableCachingForSecuredPages = ServletContainerDefinition.DISABLE_CACHING_FOR_SECURED_PAGES.resolveModelAttribute(context, model).asBoolean();
 
         final int sessionTimeout = ServletContainerDefinition.DEFAULT_SESSION_TIMEOUT.resolveModelAttribute(context, model).asInt();
+
+        WebsocketsDefinition.WebSocketInfo info = WebsocketsDefinition.INSTANCE.getConfig(context, model);
 
         final ServletContainerService container = new ServletContainerService(allowNonStandardWrappers,
                 ServletStackTraces.valueOf(stackTracesString.toUpperCase().replace('-', '_')),
@@ -93,7 +97,8 @@ final class ServletContainerAdd extends AbstractBoottimeAddStepHandler {
                 useListenerEncoding,
                 ignoreFlush,
                 eagerFilterInit,
-                sessionTimeout);
+                sessionTimeout,
+                disableCachingForSecuredPages, info != null, info != null && info.isDispatchToWorker());
         final ServiceTarget target = context.getServiceTarget();
         final ServiceBuilder<ServletContainerService> builder = target.addService(UndertowService.SERVLET_CONTAINER.append(name), container);
         if(bufferCache != null) {
@@ -102,9 +107,12 @@ final class ServletContainerAdd extends AbstractBoottimeAddStepHandler {
         if(persistentSessions) {
             builder.addDependency(AbstractPersistentSessionManager.SERVICE_NAME, SessionPersistenceManager.class, container.getSessionPersistenceManagerInjectedValue());
         }
+        if(info != null) {
+            builder.addDependency(IOServices.WORKER.append(info.getWorker()), XnioWorker.class, container.getWebsocketsWorker());
+            builder.addDependency(IOServices.BUFFER_POOL.append(info.getBufferPool()), Pool.class, (InjectedValue)container.getWebsocketsBufferPool());
+        }
 
-        newControllers.add(builder
-                .setInitialMode(ServiceController.Mode.ON_DEMAND)
-                .install());
+        builder.setInitialMode(ServiceController.Mode.ON_DEMAND)
+                .install();
     }
 }

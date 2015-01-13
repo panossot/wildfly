@@ -24,7 +24,6 @@ package org.wildfly.extension.picketlink.common.model.validator;
 import org.jboss.as.controller.AttributeDefinition;
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
-import org.jboss.as.controller.OperationStepHandler;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.dmr.ModelNode;
 
@@ -35,12 +34,18 @@ import static org.wildfly.extension.picketlink.logging.PicketLinkLogger.ROOT_LOG
 /**
  * @author Pedro Igor
  */
-public class AlternativeAttributeValidationStepHandler implements OperationStepHandler {
+public class AlternativeAttributeValidationStepHandler implements ModelValidationStepHandler {
 
     private final AttributeDefinition[] attributes;
+    private final boolean required;
 
     public AlternativeAttributeValidationStepHandler(AttributeDefinition[] attributes) {
+        this(attributes, true);
+    }
+
+    public AlternativeAttributeValidationStepHandler(AttributeDefinition[] attributes, boolean required) {
         this.attributes = attributes;
+        this.required = required;
     }
 
     @Override
@@ -64,7 +69,7 @@ public class AlternativeAttributeValidationStepHandler implements OperationStepH
             }
         }
 
-        if (definedAttribute == null) {
+        if (this.required && definedAttribute == null) {
             throw ROOT_LOGGER.requiredAlternativeAttributes(address.getLastElement().toString(), getAttributeNames());
         }
     }

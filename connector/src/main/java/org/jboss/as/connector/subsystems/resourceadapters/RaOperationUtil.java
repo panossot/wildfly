@@ -100,7 +100,7 @@ import org.jboss.as.connector.util.ModelNodeUtil;
 import org.jboss.as.connector.util.RaServicesFactory;
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
-import org.jboss.as.controller.ServiceVerificationHandler;
+import org.jboss.as.security.service.SecurityDomainService;
 import org.jboss.as.server.deployment.Attachments;
 import org.jboss.as.server.deployment.annotation.ResourceRootIndexer;
 import org.jboss.as.server.deployment.module.MountHandle;
@@ -121,6 +121,7 @@ import org.jboss.jca.common.api.metadata.resourceadapter.Activation;
 import org.jboss.jca.common.api.metadata.resourceadapter.AdminObject;
 import org.jboss.jca.common.api.metadata.resourceadapter.ConnectionDefinition;
 import org.jboss.jca.common.api.metadata.resourceadapter.WorkManager;
+import org.jboss.jca.common.api.metadata.resourceadapter.WorkManagerSecurity;
 import org.jboss.jca.common.api.validator.ValidateException;
 import org.jboss.jca.common.metadata.common.CredentialImpl;
 import org.jboss.jca.common.metadata.common.PoolImpl;
@@ -278,7 +279,7 @@ public class RaOperationUtil {
     }
 
 
-    public static ServiceName restartIfPresent(OperationContext context, final String raName, final String id, ServiceVerificationHandler svh) throws OperationFailedException {
+    public static ServiceName restartIfPresent(OperationContext context, final String raName, final String id) throws OperationFailedException {
         final ServiceName raDeploymentServiceName = ConnectorServices.getDeploymentServiceName(raName, id);
 
             final ServiceRegistry registry = context.getServiceRegistry(true);
@@ -286,9 +287,6 @@ public class RaOperationUtil {
 
             if (raServiceController != null) {
                 final org.jboss.msc.service.ServiceController.Mode originalMode = raServiceController.getMode();
-                if (svh != null) {
-                    raServiceController.addListener(svh);
-                }
                 raServiceController.addListener(new AbstractServiceListener() {
                     @Override
                     public void transition(ServiceController controller, ServiceController.Transition transition) {
@@ -336,20 +334,26 @@ public class RaOperationUtil {
 
     }
 
-    public static void activate(OperationContext context, String raName, final ServiceVerificationHandler serviceVerificationHandler) throws OperationFailedException {
+    public static void activate(OperationContext context, String raName, String archiveName) throws OperationFailedException {
         ServiceRegistry registry = context.getServiceRegistry(true);
-        final ServiceController<?> inactiveRaController = registry.getService(ConnectorServices.INACTIVE_RESOURCE_ADAPTER_SERVICE.append(raName));
+        ServiceController<?> inactiveRaController = registry.getService(ConnectorServices.INACTIVE_RESOURCE_ADAPTER_SERVICE.append(archiveName));
 
         if (inactiveRaController == null) {
-            throw ConnectorLogger.ROOT_LOGGER.RARNotYetDeployed(raName);
+
+            inactiveRaController = registry.getService(ConnectorServices.INACTIVE_RESOURCE_ADAPTER_SERVICE.append(raName));
+
+            if (inactiveRaController == null) {
+
+                throw ConnectorLogger.ROOT_LOGGER.RARNotYetDeployed(raName);
+            }
         }
         InactiveResourceAdapterDeploymentService.InactiveResourceAdapterDeployment inactive = (InactiveResourceAdapterDeploymentService.InactiveResourceAdapterDeployment) inactiveRaController.getValue();
         final ServiceController<?> RaxmlController = registry.getService(ServiceName.of(ConnectorServices.RA_SERVICE, raName));
         Activation raxml = (Activation) RaxmlController.getValue();
-        RaServicesFactory.createDeploymentService(inactive.getRegistration(), inactive.getConnectorXmlDescriptor(), inactive.getModule(), inactive.getServiceTarget(), raName, inactive.getDeploymentUnitServiceName(), inactive.getDeployment(), raxml, inactive.getResource(), serviceVerificationHandler);
+        RaServicesFactory.createDeploymentService(inactive.getRegistration(), inactive.getConnectorXmlDescriptor(), inactive.getModule(), inactive.getServiceTarget(), raName, inactive.getDeploymentUnitServiceName(), inactive.getDeployment(), raxml, inactive.getResource());
     }
 
-    public static ServiceName installRaServices(OperationContext context, ServiceVerificationHandler verificationHandler, String name, ModifiableResourceAdapter resourceAdapter, final List<ServiceController<?>> newControllers) {
+    public static ServiceName installRaServices(OperationContext context, String name, ModifiableResourceAdapter resourceAdapter, final List<ServiceController<?>> newControllers) {
         final ServiceTarget serviceTarget = context.getServiceTarget();
 
         final ServiceController<?> resourceAdaptersService = context.getServiceRegistry(false).getService(
@@ -357,23 +361,47 @@ public class RaOperationUtil {
 
         if (resourceAdaptersService == null) {
             newControllers.add(serviceTarget.addService(ConnectorServices.RESOURCEADAPTERS_SERVICE,
-                    new ResourceAdaptersService()).setInitialMode(ServiceController.Mode.ACTIVE).addListener(verificationHandler).install());
+                    new ResourceAdaptersService()).setInitialMode(ServiceController.Mode.ACTIVE).install());
         }
 
         ServiceName raServiceName = ServiceName.of(ConnectorServices.RA_SERVICE, name);
         final ServiceController<?> service = context.getServiceRegistry(true).getService(raServiceName);
         if (service == null) {
             ResourceAdapterService raService = new ResourceAdapterService(resourceAdapter, name);
-            newControllers.add(serviceTarget.addService(raServiceName, raService).setInitialMode(ServiceController.Mode.ACTIVE)
+            ServiceBuilder builder = serviceTarget.addService(raServiceName, raService).setInitialMode(ServiceController.Mode.ACTIVE)
                     .addDependency(ConnectorServices.RESOURCEADAPTERS_SERVICE, ResourceAdaptersService.ModifiableResourceAdaptors.class, raService.getResourceAdaptersInjector())
-                    .addDependency(ConnectorServices.RESOURCEADAPTERS_SUBSYSTEM_SERVICE, CopyOnWriteArrayListMultiMap.class, raService.getResourceAdaptersMapInjector())
-                    .addListener(verificationHandler).install());
+                    .addDependency(ConnectorServices.RESOURCEADAPTERS_SUBSYSTEM_SERVICE, CopyOnWriteArrayListMultiMap.class, raService.getResourceAdaptersMapInjector());
+            // add dependency on security domain service if applicable for recovery config
+            for (ConnectionDefinition cd : resourceAdapter.getConnectionDefinitions()) {
+                Security security = cd.getSecurity();
+                if (security != null) {
+                    if (security.getSecurityDomain() != null) {
+                        builder.addDependency(SecurityDomainService.SERVICE_NAME.append(security.getSecurityDomain()));
+                    }
+                    if (security.getSecurityDomainAndApplication() != null) {
+                        builder.addDependency(SecurityDomainService.SERVICE_NAME.append(security.getSecurityDomainAndApplication()));
+                    }
+                    if (cd.getRecovery() != null && cd.getRecovery().getCredential() != null && cd.getRecovery().getCredential().getSecurityDomain() != null) {
+                        builder.addDependency(SecurityDomainService.SERVICE_NAME.append(cd.getRecovery().getCredential().getSecurityDomain()));
+                    }
+                }
+            }
+            if (resourceAdapter.getWorkManager() != null) {
+                final WorkManagerSecurity workManagerSecurity = resourceAdapter.getWorkManager().getSecurity();
+                if (workManagerSecurity != null) {
+                    final String securityDomainName = workManagerSecurity.getDomain();
+                    if (securityDomainName != null) {
+                        builder.addDependency(SecurityDomainService.SERVICE_NAME.append(securityDomainName));
+                    }
+                }
+            }
+            newControllers.add(builder.install());
         }
         return raServiceName;
     }
 
-    public static void installRaServicesAndDeployFromModule(OperationContext context, ServiceVerificationHandler verificationHandler, String name, ModifiableResourceAdapter resourceAdapter, String fullModuleName, final List<ServiceController<?>> newControllers) throws OperationFailedException{
-        ServiceName raServiceName =  installRaServices(context, verificationHandler, name, resourceAdapter, newControllers);
+    public static void installRaServicesAndDeployFromModule(OperationContext context, String name, ModifiableResourceAdapter resourceAdapter, String fullModuleName, final List<ServiceController<?>> newControllers) throws OperationFailedException{
+        ServiceName raServiceName =  installRaServices(context, name, resourceAdapter, newControllers);
         final boolean resolveProperties = true;
         final ServiceTarget serviceTarget = context.getServiceTarget();
         final String moduleName;
@@ -430,7 +458,7 @@ public class RaOperationUtil {
                 final ServiceName deployerServiceName = ConnectorServices.RESOURCE_ADAPTER_DEPLOYER_SERVICE_PREFIX.append(connectorXmlDescriptor.getDeploymentName());
                 final ServiceController<?> deployerService = context.getServiceRegistry(true).getService(deployerServiceName);
                 if (deployerService == null) {
-                    ServiceBuilder builder = ParsedRaDeploymentProcessor.process(connectorXmlDescriptor, ironJacamarXmlDescriptor, module.getClassLoader(), serviceTarget, annotationIndexes, RAR_MODULE.append(name), verificationHandler);
+                    ServiceBuilder builder = ParsedRaDeploymentProcessor.process(connectorXmlDescriptor, ironJacamarXmlDescriptor, module.getClassLoader(), serviceTarget, annotationIndexes, RAR_MODULE.append(name));
                     newControllers.add(builder.addDependency(raServiceName).setInitialMode(ServiceController.Mode.ACTIVE).install());
                 }
                 String rarName = resourceAdapter.getArchive();
@@ -442,7 +470,7 @@ public class RaOperationUtil {
                     InactiveResourceAdapterDeploymentService service = new InactiveResourceAdapterDeploymentService(connectorXmlDescriptor, module, name, name, RAR_MODULE.append(name), null, serviceTarget, null);
                     newControllers.add(serviceTarget
                             .addService(serviceName, service)
-                            .setInitialMode(ServiceController.Mode.ACTIVE).addListener(verificationHandler).install());
+                            .setInitialMode(ServiceController.Mode.ACTIVE).install());
 
                 }
 

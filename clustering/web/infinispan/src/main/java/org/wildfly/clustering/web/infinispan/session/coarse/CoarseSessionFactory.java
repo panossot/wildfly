@@ -28,10 +28,10 @@ import org.infinispan.Cache;
 import org.infinispan.configuration.cache.TransactionConfiguration;
 import org.infinispan.context.Flag;
 import org.infinispan.transaction.LockingMode;
-import org.jboss.as.clustering.marshalling.MarshalledValue;
-import org.jboss.as.clustering.marshalling.MarshallingContext;
 import org.wildfly.clustering.ee.infinispan.CacheEntryMutator;
 import org.wildfly.clustering.ee.infinispan.Mutator;
+import org.wildfly.clustering.marshalling.MarshalledValue;
+import org.wildfly.clustering.marshalling.MarshallingContext;
 import org.wildfly.clustering.web.LocalContextFactory;
 import org.wildfly.clustering.web.infinispan.logging.InfinispanWebLogger;
 import org.wildfly.clustering.web.infinispan.session.InfinispanImmutableSession;
@@ -111,7 +111,7 @@ public class CoarseSessionFactory<L> implements SessionFactory<CoarseSessionEntr
         CoarseSessionCacheEntry<L> entry = cache.get(id);
         if (entry == null) return null;
         MarshalledValue<Map<String, Object>, MarshallingContext> value = this.attributesCache.get(new SessionAttributesCacheKey(id));
-        return new CoarseSessionEntry<>(entry, value);
+        return (value != null) ? new CoarseSessionEntry<>(entry, value) : null;
     }
 
     @Override

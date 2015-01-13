@@ -33,13 +33,12 @@ import org.jboss.shrinkwrap.api.spec.WebArchive;
 
 import javax.naming.InitialContext;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 /**
  * Create org.apache.openjpa:main module before running this test. The module
- * must depend on javaee.api and org.jboss.as.jpa.openjpa. 
+ * must depend on javaee.api and org.jboss.as.jpa.openjpa.
  *
  * @author Antti Laisi
  */
@@ -80,7 +79,7 @@ public class OpenJPASharedModuleProviderTestCase {
         WebArchive main = ShrinkWrap.create(WebArchive.class, "main.war");
         main.addClasses(OpenJPASharedModuleProviderTestCase.class);
         ear.addAsModule(main);
-        
+
         return ear;
     }
 

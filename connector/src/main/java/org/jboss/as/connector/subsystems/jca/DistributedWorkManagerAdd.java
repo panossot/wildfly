@@ -21,7 +21,6 @@
  */
 package org.jboss.as.connector.subsystems.jca;
 
-import org.jboss.as.clustering.jgroups.ChannelFactory;
 import org.jboss.as.connector.services.workmanager.DistributedWorkManagerService;
 import org.jboss.as.connector.services.workmanager.NamedDistributedWorkManager;
 import org.jboss.as.connector.util.ConnectorServices;
@@ -30,10 +29,10 @@ import org.jboss.as.controller.AbstractAddStepHandler;
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
 import org.jboss.as.controller.PropertiesAttributeDefinition;
-import org.jboss.as.controller.ServiceVerificationHandler;
 import org.jboss.as.threads.ThreadsServices;
 import org.jboss.as.txn.service.TxnServices;
 import org.jboss.dmr.ModelNode;
+import org.jboss.jca.core.api.workmanager.DistributedWorkManager;
 import org.jboss.jca.core.workmanager.policy.Always;
 import org.jboss.jca.core.workmanager.policy.Never;
 import org.jboss.jca.core.workmanager.policy.WaterMark;
@@ -42,11 +41,11 @@ import org.jboss.jca.core.workmanager.selector.MaxFreeThreads;
 import org.jboss.jca.core.workmanager.selector.PingTime;
 import org.jboss.msc.service.ServiceBuilder;
 import org.jboss.msc.service.ServiceController;
-import org.jboss.msc.service.ServiceName;
 import org.jboss.msc.service.ServiceTarget;
 import org.jboss.tm.JBossXATerminator;
+import org.wildfly.clustering.jgroups.ChannelFactory;
+import org.wildfly.clustering.jgroups.spi.service.ProtocolStackServiceName;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -70,8 +69,7 @@ public class DistributedWorkManagerAdd extends AbstractAddStepHandler {
     }
 
     @Override
-    protected void performRuntime(final OperationContext context, final ModelNode operation, final ModelNode model,
-                                  final ServiceVerificationHandler verificationHandler, final List<ServiceController<?>> newControllers) throws OperationFailedException {
+    protected void performRuntime(final OperationContext context, final ModelNode operation, final ModelNode model) throws OperationFailedException {
 
         String name = JcaDistributedWorkManagerDefinition.DWmParameters.NAME.getAttribute().resolveModelAttribute(context, model).asString();
 
@@ -147,16 +145,15 @@ public class DistributedWorkManagerAdd extends AbstractAddStepHandler {
         Long requestTimeout = JcaDistributedWorkManagerDefinition.DWmParameters.TRANSPORT_REQUEST_TIMEOUT.getAttribute().resolveModelAttribute(context, model).asLong();
 
         DistributedWorkManagerService wmService = new DistributedWorkManagerService(namedDistributedWorkManager, channelName, requestTimeout);
-        ServiceBuilder builder = serviceTarget
+        ServiceBuilder<DistributedWorkManager> builder = serviceTarget
                 .addService(ConnectorServices.WORKMANAGER_SERVICE.append(name), wmService);
-        builder.addDependency(ServiceName.JBOSS.append("jgroups").append("stack").append(jgroupsStack), ChannelFactory.class, wmService.getJGroupsChannelFactoryInjector());
+        builder.addDependency(ProtocolStackServiceName.CHANNEL_FACTORY.getServiceName(jgroupsStack), ChannelFactory.class, wmService.getJGroupsChannelFactoryInjector());
 
 
         builder.addDependency(ServiceBuilder.DependencyType.OPTIONAL, ThreadsServices.EXECUTOR.append(WORKMANAGER_LONG_RUNNING).append(name), Executor.class, wmService.getExecutorLongInjector());
         builder.addDependency(ThreadsServices.EXECUTOR.append(WORKMANAGER_SHORT_RUNNING).append(name), Executor.class, wmService.getExecutorShortInjector());
 
         builder.addDependency(TxnServices.JBOSS_TXN_XA_TERMINATOR, JBossXATerminator.class, wmService.getXaTerminatorInjector())
-                .addListener(verificationHandler)
                 .setInitialMode(ServiceController.Mode.ACTIVE)
                 .install();
     }

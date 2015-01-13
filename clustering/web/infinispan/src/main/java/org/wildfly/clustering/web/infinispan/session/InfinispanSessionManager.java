@@ -37,9 +37,11 @@ import javax.servlet.http.HttpSessionListener;
 
 import org.infinispan.Cache;
 import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.distribution.DistributionManager;
-import org.infinispan.filter.KeyFilter;
+import org.infinispan.filter.NullValueConverter;
+import org.infinispan.iteration.EntryIterable;
 import org.infinispan.notifications.Listener;
 import org.infinispan.notifications.cachelistener.annotation.CacheEntryActivated;
 import org.infinispan.notifications.cachelistener.annotation.CacheEntryPassivated;
@@ -50,19 +52,19 @@ import org.infinispan.notifications.cachelistener.event.CacheEntryPassivatedEven
 import org.infinispan.notifications.cachelistener.event.CacheEntryRemovedEvent;
 import org.infinispan.notifications.cachelistener.event.DataRehashedEvent;
 import org.infinispan.remoting.transport.Address;
-import org.jboss.as.clustering.concurrent.Invoker;
-import org.jboss.as.clustering.concurrent.RetryingInvoker;
-import org.jboss.as.clustering.infinispan.distribution.ConsistentHashLocality;
-import org.jboss.as.clustering.infinispan.distribution.Locality;
-import org.jboss.as.clustering.infinispan.distribution.SimpleLocality;
 import org.wildfly.clustering.dispatcher.Command;
 import org.wildfly.clustering.dispatcher.CommandDispatcher;
 import org.wildfly.clustering.dispatcher.CommandDispatcherFactory;
 import org.wildfly.clustering.ee.Batch;
 import org.wildfly.clustering.ee.Batcher;
+import org.wildfly.clustering.ee.Invoker;
+import org.wildfly.clustering.ee.infinispan.RetryingInvoker;
 import org.wildfly.clustering.ee.infinispan.TransactionBatch;
 import org.wildfly.clustering.group.Node;
 import org.wildfly.clustering.group.NodeFactory;
+import org.wildfly.clustering.infinispan.spi.distribution.ConsistentHashLocality;
+import org.wildfly.clustering.infinispan.spi.distribution.Locality;
+import org.wildfly.clustering.infinispan.spi.distribution.SimpleLocality;
 import org.wildfly.clustering.web.IdentifierFactory;
 import org.wildfly.clustering.web.infinispan.logging.InfinispanWebLogger;
 import org.wildfly.clustering.web.session.ImmutableHttpSessionAdapter;
@@ -79,7 +81,7 @@ import org.wildfly.clustering.web.session.SessionMetaData;
  * @author Paul Ferraro
  */
 @Listener(primaryOnly = true)
-public class InfinispanSessionManager<V, L> implements SessionManager<L, TransactionBatch>, KeyFilter<Object> {
+public class InfinispanSessionManager<V, L> implements SessionManager<L, TransactionBatch> {
     private final SessionContext context;
     private final Batcher<TransactionBatch> batcher;
     private final Cache<String, ?> cache;
@@ -91,6 +93,7 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
     private volatile Time defaultMaxInactiveInterval = new Time(30, TimeUnit.MINUTES);
     private final boolean persistent;
     private final Invoker invoker = new RetryingInvoker(0, 10, 100);
+    private final SessionIdentifierFilter filter = new SessionIdentifierFilter();
 
     volatile CommandDispatcher<Scheduler> dispatcher;
     private volatile Scheduler scheduler;
@@ -149,7 +152,7 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
             }
         };
         this.dispatcher = this.dispatcherFactory.createCommandDispatcher(this.cache.getName() + ".schedulers", this.scheduler);
-        this.cache.addListener(this, this);
+        this.cache.addListener(this, this.filter);
         this.schedule(this.cache, new SimpleLocality(false), new ConsistentHashLocality(this.cache));
     }
 
@@ -197,11 +200,6 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
         DistributionManager dist = this.cache.getAdvancedCache().getDistributionManager();
         Address address = (dist != null) ? dist.getPrimaryLocation(session.getId()) : null;
         return (address != null) ? this.nodeFactory.createNode(address) : this.dispatcherFactory.getGroup().getLocalNode();
-    }
-
-    @Override
-    public boolean accept(Object key) {
-        return key instanceof String;
     }
 
     @Override
@@ -277,9 +275,9 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
 
     private Set<String> getSessions(Flag... flags) {
         Set<String> result = new HashSet<>();
-        for (Object key: this.cache.getAdvancedCache().withFlags(flags).keySet()) {
-            if (key instanceof String) {
-                result.add((String) key);
+        try (EntryIterable<String, ?> entries = this.cache.getAdvancedCache().withFlags(flags).filterEntries(this.filter)) {
+            for (CacheEntry<String, ?> entry : entries.converter(NullValueConverter.getInstance())) {
+                result.add(entry.getKey());
             }
         }
         return result;
@@ -290,8 +288,11 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
         if (!event.isPre() && !this.persistent) {
             String id = event.getKey();
             InfinispanWebLogger.ROOT_LOGGER.tracef("Session %s was activated", id);
-            ImmutableSession session = this.factory.createImmutableSession(id, this.factory.findValue(id));
-            triggerPostActivationEvents(session);
+            V value = this.factory.findValue(id);
+            if (value != null) {
+                ImmutableSession session = this.factory.createImmutableSession(id, value);
+                triggerPostActivationEvents(session);
+            }
         }
     }
 
@@ -300,8 +301,11 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
         if (event.isPre() && !this.persistent) {
             String id = event.getKey();
             InfinispanWebLogger.ROOT_LOGGER.tracef("Session %s will be passivated", id);
-            ImmutableSession session = this.factory.createSession(id, this.factory.findValue(id));
-            triggerPrePassivationEvents(session);
+            V value = this.factory.findValue(id);
+            if (value != null) {
+                ImmutableSession session = this.factory.createImmutableSession(id, value);
+                triggerPrePassivationEvents(session);
+            }
         }
     }
 
@@ -310,20 +314,23 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
         if (event.isPre()) {
             String id = event.getKey();
             InfinispanWebLogger.ROOT_LOGGER.tracef("Session %s will be removed", id);
-            ImmutableSession session = this.factory.createImmutableSession(id, this.factory.findValue(id));
-            ImmutableSessionAttributes attributes = session.getAttributes();
+            V value = this.factory.findValue(id);
+            if (value != null) {
+                ImmutableSession session = this.factory.createImmutableSession(id, value);
+                ImmutableSessionAttributes attributes = session.getAttributes();
 
-            HttpSession httpSession = new ImmutableHttpSessionAdapter(session);
-            HttpSessionEvent sessionEvent = new HttpSessionEvent(httpSession);
-            for (HttpSessionListener listener: this.context.getSessionListeners()) {
-                listener.sessionDestroyed(sessionEvent);
-            }
+                HttpSession httpSession = new ImmutableHttpSessionAdapter(session);
+                HttpSessionEvent sessionEvent = new HttpSessionEvent(httpSession);
+                for (HttpSessionListener listener: this.context.getSessionListeners()) {
+                    listener.sessionDestroyed(sessionEvent);
+                }
 
-            for (String attribute: attributes.getAttributeNames()) {
-                Object value = attributes.getAttribute(attribute);
-                if (value instanceof HttpSessionBindingListener) {
-                    HttpSessionBindingListener listener = (HttpSessionBindingListener) value;
-                    listener.valueUnbound(new HttpSessionBindingEvent(httpSession, attribute, value));
+                for (String name: attributes.getAttributeNames()) {
+                    Object attribute = attributes.getAttribute(name);
+                    if (attribute instanceof HttpSessionBindingListener) {
+                        HttpSessionBindingListener listener = (HttpSessionBindingListener) attribute;
+                        listener.valueUnbound(new HttpSessionBindingEvent(httpSession, name, attribute));
+                    }
                 }
             }
         }
@@ -344,10 +351,9 @@ public class InfinispanSessionManager<V, L> implements SessionManager<L, Transac
 
     private void schedule(Cache<String, ?> cache, Locality oldLocality, Locality newLocality) {
         // Iterate over sessions in memory
-        for (Object key: cache.getAdvancedCache().withFlags(Flag.CACHE_MODE_LOCAL, Flag.SKIP_CACHE_LOAD).keySet()) {
-            // Cache may contain non-string keys, so ignore any others
-            if (this.accept(key)) {
-                String sessionId = (String) key;
+        try (EntryIterable<String, ?> entries = cache.getAdvancedCache().withFlags(Flag.CACHE_MODE_LOCAL, Flag.SKIP_CACHE_LOAD).filterEntries(this.filter)) {
+            for (CacheEntry<String, ?> entry : entries.converter(NullValueConverter.getInstance())) {
+                String sessionId = entry.getKey();
                 // If we are the new primary owner of this session
                 // then schedule expiration of this session locally
                 if (!oldLocality.isLocal(sessionId) && newLocality.isLocal(sessionId)) {

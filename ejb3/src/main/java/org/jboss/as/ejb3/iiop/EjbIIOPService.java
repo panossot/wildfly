@@ -292,7 +292,7 @@ public class EjbIIOPService implements Service<EjbIIOPService> {
 
                 // Create SSLPolicy (SSL_REQUIRED ensures home and remote IORs will have port 0 in the primary address).
                 boolean sslRequired = false;
-                if (iorSecurityConfigMetaData != null) {
+                if (iorSecurityConfigMetaData != null && iorSecurityConfigMetaData.getTransportConfig() != null) {
                     IORTransportConfigMetaData tc = iorSecurityConfigMetaData.getTransportConfig();
                     sslRequired = IORTransportConfigMetaData.INTEGRITY_REQUIRED.equals(tc.getIntegrity())
                             || IORTransportConfigMetaData.CONFIDENTIALITY_REQUIRED.equals(tc.getConfidentiality())
@@ -303,7 +303,7 @@ public class EjbIIOPService implements Service<EjbIIOPService> {
                 Policy sslPolicy = orb.create_policy(SSL_POLICY_TYPE.value, sslPolicyValue);
                 policyList.add(sslPolicy);
 
-                EjbLogger.ROOT_LOGGER.debug("container's SSL policy: " + sslPolicy);
+                EjbLogger.ROOT_LOGGER.debugf("container's SSL policy: %s", sslPolicy);
             }
 
             String securityDomain = "CORBA_REMOTE"; //TODO: what should this default to
@@ -374,7 +374,7 @@ public class EjbIIOPService implements Service<EjbIIOPService> {
 
             // Register bean home in local CORBA naming context
             rebind(corbaNamingContext.getValue(), name, corbaRef);
-            EjbLogger.ROOT_LOGGER.debug("Home IOR for " + component.getComponentName() + " bound to " + this.name + " in CORBA naming service");
+            EjbLogger.ROOT_LOGGER.debugf("Home IOR for %s bound to %s in CORBA naming service", component.getComponentName(), this.name);
 
             //now eagerly force stub creation, so de-serialization of stubs will work correctly
             final ClassLoader cl = WildFlySecurityManager.getCurrentContextClassLoaderPrivileged();

@@ -27,7 +27,6 @@ import static org.jboss.as.connector.subsystems.datasources.Constants.DATASOURCE
 import static org.jboss.as.connector.subsystems.datasources.Constants.DATASOURCE_PROPERTIES_ATTRIBUTES;
 
 import org.jboss.as.controller.OperationFailedException;
-import org.jboss.as.controller.ServiceVerificationHandler;
 import org.jboss.dmr.ModelNode;
 import org.jboss.msc.service.ServiceBuilder;
 import org.jboss.msc.service.ServiceName;
@@ -45,13 +44,13 @@ public class DataSourceAdd extends AbstractDataSourceAdd {
         populateAddModel(operation, model, CONNECTION_PROPERTIES.getName(), DATASOURCE_ATTRIBUTE, DATASOURCE_PROPERTIES_ATTRIBUTES);
     }
 
-    protected AbstractDataSourceService createDataSourceService(final String jndiName) throws OperationFailedException {
-        return new LocalDataSourceService(jndiName);
+    protected AbstractDataSourceService createDataSourceService(final String dsName,final String jndiName) throws OperationFailedException {
+        return new LocalDataSourceService(dsName, jndiName);
     }
 
     @Override
     protected void startConfigAndAddDependency(ServiceBuilder<?> dataSourceServiceBuilder,
-            AbstractDataSourceService dataSourceService, String jndiName, ServiceTarget serviceTarget, final ModelNode operation, final ServiceVerificationHandler handler)
+            AbstractDataSourceService dataSourceService, String jndiName, ServiceTarget serviceTarget, final ModelNode operation)
             throws OperationFailedException {
 
         final ServiceName dataSourceCongServiceName = DataSourceConfigService.SERVICE_NAME_BASE.append(jndiName);

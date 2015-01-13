@@ -53,6 +53,7 @@ import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.ADD
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.OP_ADDR;
 import static org.jboss.as.controller.parsing.ParseUtils.duplicateNamedElement;
 import static org.jboss.as.controller.parsing.ParseUtils.requireNoAttributes;
+import static org.jboss.as.controller.parsing.ParseUtils.unexpectedAttribute;
 import static org.jboss.as.controller.parsing.ParseUtils.unexpectedElement;
 import static org.wildfly.extension.picketlink.common.model.ModelElement.COMMON_HANDLER;
 import static org.wildfly.extension.picketlink.common.model.ModelElement.COMMON_HANDLER_PARAMETER;
@@ -182,9 +183,8 @@ public abstract class AbstractFederationSubsystemReader implements XMLStreamCons
         }, SERVICE_PROVIDER, serviceProviderNode, reader, addOperations);
     }
 
-    private void parseHandlerConfig(final XMLExtendedStreamReader reader, final ModelNode entityProviderNode, final List<ModelNode> addOperations) throws XMLStreamException {
-        String name = resolveNodeName(reader, HandlerResourceDefinition.CLASS_NAME, HandlerResourceDefinition.CODE);
-        ModelNode handlerNode = parseConfig(reader, COMMON_HANDLER, name, entityProviderNode, HandlerResourceDefinition.INSTANCE
+    protected void parseHandlerConfig(final XMLExtendedStreamReader reader, final ModelNode entityProviderNode, final List<ModelNode> addOperations) throws XMLStreamException {
+        ModelNode handlerNode = parseConfig(reader, COMMON_HANDLER, COMMON_NAME.getName(), entityProviderNode, HandlerResourceDefinition.INSTANCE
             .getAttributes(), addOperations);
 
         parseElement(new ElementParser() {
@@ -219,15 +219,11 @@ public abstract class AbstractFederationSubsystemReader implements XMLStreamCons
                             TrustDomainResourceDefinition.INSTANCE.getAttributes(), addOperations);
                         break;
                     case IDENTITY_PROVIDER_ROLE_GENERATOR:
-                        String roleGeneratorName = resolveNodeName(reader, RoleGeneratorResourceDefinition.CLASS_NAME, RoleGeneratorResourceDefinition.CODE);
-
-                        parseConfig(reader, IDENTITY_PROVIDER_ROLE_GENERATOR, roleGeneratorName, parentNode,
+                        parseConfig(reader, IDENTITY_PROVIDER_ROLE_GENERATOR, COMMON_NAME.getName(), parentNode,
                             RoleGeneratorResourceDefinition.INSTANCE.getAttributes(), addOperations);
                         break;
                     case IDENTITY_PROVIDER_ATTRIBUTE_MANAGER:
-                        String attributeManagerName = resolveNodeName(reader, AttributeManagerResourceDefinition.CLASS_NAME, AttributeManagerResourceDefinition.CODE);
-
-                        parseConfig(reader, IDENTITY_PROVIDER_ATTRIBUTE_MANAGER, attributeManagerName, parentNode,
+                        parseConfig(reader, IDENTITY_PROVIDER_ATTRIBUTE_MANAGER, COMMON_NAME.getName(), parentNode,
                             AttributeManagerResourceDefinition.INSTANCE.getAttributes(), addOperations);
                         break;
                     case COMMON_HANDLER:
@@ -276,6 +272,16 @@ public abstract class AbstractFederationSubsystemReader implements XMLStreamCons
         }
 
         ModelNode modelNode = Util.getEmptyOperation(ADD, null);
+
+        int attributeCount = reader.getAttributeCount();
+
+        for (int i = 0; i < attributeCount; i++) {
+            String attributeLocalName = reader.getAttributeLocalName(i);
+
+            if (ModelElement.forName(attributeLocalName) == null) {
+                throw unexpectedAttribute(reader, i);
+            }
+        }
 
         for (SimpleAttributeDefinition simpleAttributeDefinition : attributes) {
             String attributeValue = reader.getAttributeValue("", simpleAttributeDefinition.getXmlName());
@@ -338,15 +344,6 @@ public abstract class AbstractFederationSubsystemReader implements XMLStreamCons
 
             visited.add(tagName);
         }
-    }
-
-    private String resolveNodeName(XMLExtendedStreamReader reader, SimpleAttributeDefinition primaryAttribute, SimpleAttributeDefinition alternativeAttribute) {
-        String name = reader.getAttributeValue("", primaryAttribute.getName());
-
-        if (name == null) {
-            name = reader.getAttributeValue("", alternativeAttribute.getName());
-        }
-        return name;
     }
 
     interface ElementParser {

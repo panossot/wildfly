@@ -24,7 +24,6 @@ package org.wildfly.extension.picketlink.idm.model;
 
 import org.jboss.as.controller.SimpleAttributeDefinition;
 import org.jboss.as.controller.SimpleAttributeDefinitionBuilder;
-import org.jboss.as.controller.registry.ManagementResourceRegistration;
 import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
 import org.wildfly.extension.picketlink.common.model.ModelElement;
@@ -43,18 +42,20 @@ public class LDAPStoreAttributeResourceDefinition extends AbstractIDMResourceDef
         .build();
     public static final SimpleAttributeDefinition IS_IDENTIFIER = new SimpleAttributeDefinitionBuilder(ModelElement.LDAP_STORE_ATTRIBUTE_IS_IDENTIFIER.getName(), ModelType.BOOLEAN, true)
         .setDefaultValue(new ModelNode(false))
+        .setAlternatives(ModelElement.LDAP_STORE_ATTRIBUTE_READ_ONLY.getName())
         .build();
     public static final SimpleAttributeDefinition READ_ONLY = new SimpleAttributeDefinitionBuilder(ModelElement.LDAP_STORE_ATTRIBUTE_READ_ONLY.getName(), ModelType.BOOLEAN, true)
         .setDefaultValue(new ModelNode(false))
+        .setAlternatives(ModelElement.LDAP_STORE_ATTRIBUTE_IS_IDENTIFIER.getName())
         .build();
     public static final LDAPStoreAttributeResourceDefinition INSTANCE = new LDAPStoreAttributeResourceDefinition(NAME, LDAP_NAME, IS_IDENTIFIER, READ_ONLY);
 
     private LDAPStoreAttributeResourceDefinition(SimpleAttributeDefinition... attributes) {
-        super(ModelElement.LDAP_STORE_ATTRIBUTE, new IDMConfigAddStepHandler(attributes), attributes);
-    }
-
-    @Override
-    public void registerChildren(ManagementResourceRegistration resourceRegistration) {
-        addChildResourceDefinition(SupportedTypesResourceDefinition.INSTANCE, resourceRegistration);
+        super(ModelElement.LDAP_STORE_ATTRIBUTE, new IDMConfigAddStepHandler(attributes) {
+            @Override
+            protected boolean isAlternativesRequired() {
+                return false;
+            }
+        }, attributes);
     }
 }

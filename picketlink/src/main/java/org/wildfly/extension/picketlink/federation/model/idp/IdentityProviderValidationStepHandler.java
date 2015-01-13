@@ -25,7 +25,7 @@ import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
 import org.jboss.dmr.ModelNode;
 import org.wildfly.extension.picketlink.common.model.ModelElement;
-import org.wildfly.extension.picketlink.common.model.validator.ElementOccurrenceValidationStepHandler;
+import org.wildfly.extension.picketlink.common.model.validator.ElementMaxOccurrenceValidationStepHandler;
 
 import static org.jboss.as.controller.PathAddress.EMPTY_ADDRESS;
 import static org.wildfly.extension.picketlink.logging.PicketLinkLogger.ROOT_LOGGER;
@@ -33,7 +33,7 @@ import static org.wildfly.extension.picketlink.logging.PicketLinkLogger.ROOT_LOG
 /**
  * @author Pedro Igor
  */
-public class IdentityProviderValidationStepHandler extends ElementOccurrenceValidationStepHandler {
+public class IdentityProviderValidationStepHandler extends ElementMaxOccurrenceValidationStepHandler {
 
     public IdentityProviderValidationStepHandler() {
         super(ModelElement.IDENTITY_PROVIDER, ModelElement.FEDERATION, 1);

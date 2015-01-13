@@ -55,8 +55,6 @@ public class XTSDependenciesDeploymentProcessor implements DeploymentUnitProcess
 
     private static final ModuleIdentifier XTS_MODULE = ModuleIdentifier.create("org.jboss.xts");
 
-    private static final ModuleIdentifier TXF_MODULE = ModuleIdentifier.create("org.jboss.narayana.txframework");
-
     private static final Class[] COMPENSATABLE_ANNOTATIONS = {
             Compensatable.class,
             CancelOnFailure.class,
@@ -75,10 +73,7 @@ public class XTSDependenciesDeploymentProcessor implements DeploymentUnitProcess
             return;
         }
 
-        if (isCompensationAnnotationPresent(compositeIndex)) {
-            addXTSModuleDependency(unit);
-            addTXFModuleDependency(unit);
-        } else if (isTransactionalEndpointPresent(compositeIndex)) {
+        if (isCompensationAnnotationPresent(compositeIndex) || isTransactionalEndpointPresent(compositeIndex)) {
             addXTSModuleDependency(unit);
         }
     }
@@ -122,12 +117,6 @@ public class XTSDependenciesDeploymentProcessor implements DeploymentUnitProcess
         final ModuleLoader moduleLoader = Module.getBootModuleLoader();
         final ModuleSpecification moduleSpec = unit.getAttachment(Attachments.MODULE_SPECIFICATION);
         moduleSpec.addSystemDependency(new ModuleDependency(moduleLoader, XTS_MODULE, false, false, false, false));
-    }
-
-    private void addTXFModuleDependency(final DeploymentUnit unit) {
-        final ModuleLoader moduleLoader = Module.getBootModuleLoader();
-        final ModuleSpecification moduleSpec = unit.getAttachment(Attachments.MODULE_SPECIFICATION);
-        moduleSpec.addSystemDependency(new ModuleDependency(moduleLoader, TXF_MODULE, false, false, false, false));
     }
 
 }

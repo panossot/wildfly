@@ -26,6 +26,7 @@ import java.util.List;
 
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.web.common.WarMetaData;
+import org.jboss.as.webservices.config.ServerHostInfo;
 import org.jboss.as.webservices.logging.WSLogger;
 import org.jboss.as.webservices.util.ASHelper;
 import org.jboss.as.webservices.util.WebMetaDataHelper;
@@ -126,9 +127,13 @@ final class WebMetaDataCreator {
 
         // Set virtual host
         final String virtualHost = dep.getService().getVirtualHost();
-        if (virtualHost != null) {
-             WSLogger.ROOT_LOGGER.tracef("Setting virtual host: %s", virtualHost);
-            jbossWebMD.setVirtualHosts(Arrays.asList(virtualHost));
+        ServerHostInfo serverHostInfo = new ServerHostInfo(virtualHost);
+        if (serverHostInfo.getHost() != null) {
+            WSLogger.ROOT_LOGGER.tracef("Setting virtual host: %s", serverHostInfo.getHost());
+            jbossWebMD.setVirtualHosts(Arrays.asList(serverHostInfo.getHost()));
+            if (serverHostInfo.getServerInstanceName() != null) {
+                jbossWebMD.setServerInstanceName(serverHostInfo.getServerInstanceName());
+            }
         }
     }
 
@@ -266,11 +271,16 @@ final class WebMetaDataCreator {
     private void createLoginConfig(final Deployment dep, final JBossWebMetaData jbossWebMD) {
         final String authMethod = getAuthMethod(dep);
         final boolean hasAuthMethod = authMethod != null;
+        final String realmName = getRealmName(dep);
 
         if (hasAuthMethod) {
              WSLogger.ROOT_LOGGER.tracef("Creating new login config: %s, auth method: %s", EJB_WEBSERVICE_REALM, authMethod);
             final LoginConfigMetaData loginConfig = WebMetaDataHelper.getLoginConfig(jbossWebMD);
-            loginConfig.setRealmName(WebMetaDataCreator.EJB_WEBSERVICE_REALM);
+            if (realmName != null) {
+                loginConfig.setRealmName(realmName);
+            } else {
+                loginConfig.setRealmName(WebMetaDataCreator.EJB_WEBSERVICE_REALM);
+            }
             loginConfig.setAuthMethod(authMethod);
         }
     }
@@ -342,5 +352,17 @@ final class WebMetaDataCreator {
 
         return null;
     }
+
+    private String getRealmName(final Deployment dep) {
+        for (final Endpoint ejbEndpoint : dep.getService().getEndpoints()) {
+            final String realmName = ejb3SecurityAccessor.getRealmName(ejbEndpoint);
+            final boolean hasRealmName = realmName != null;
+            if (hasRealmName) {
+                return realmName;
+            }
+        }
+        return null;
+    }
+
 
 }

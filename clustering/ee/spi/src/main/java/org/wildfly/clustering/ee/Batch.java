@@ -26,6 +26,13 @@ package org.wildfly.clustering.ee;
  * @author Paul Ferraro
  */
 public interface Batch extends AutoCloseable {
+
+    /**
+     * Indicates whether or not this batch is active.
+     * @return true if this batch is active, false otherwise.
+     */
+    boolean isActive();
+
     /**
      * End this batch.
      */

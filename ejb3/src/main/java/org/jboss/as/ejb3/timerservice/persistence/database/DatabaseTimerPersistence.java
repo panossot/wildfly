@@ -240,6 +240,10 @@ public class DatabaseTimerPersistence implements TimerPersistence, Service<Datab
                 unified = "h2";
             } else if (name.toLowerCase().contains("oracle")) {
                 unified = "oracle";
+            }else if (name.toLowerCase().contains("microsoft")) {
+                unified = "mssql";
+            }else if (name.toLowerCase().contains("jconnect")) {
+                unified = "sybase";
             }
          }
         EjbLogger.ROOT_LOGGER.debugf("Check dialect for '%s', result is '%s'", name, unified);
@@ -513,6 +517,7 @@ public class DatabaseTimerPersistence implements TimerPersistence, Service<Datab
                 final Method timeoutMethod = CalendarTimer.getTimeoutMethod(new TimeoutMethod(clazz, methodName, params), timerService.getTimedObjectInvoker().getValue().getClassLoader());
                 if (timeoutMethod == null) {
                     EjbLogger.ROOT_LOGGER.timerReinstatementFailed(resultSet.getString(2), resultSet.getString(1), new NoSuchMethodException());
+                    return null;
                 }
                 cb.setTimeoutMethod(timeoutMethod);
             }

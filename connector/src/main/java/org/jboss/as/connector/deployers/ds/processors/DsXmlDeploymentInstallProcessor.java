@@ -47,7 +47,6 @@ import org.jboss.as.connector.subsystems.datasources.XaDataSourceService;
 import org.jboss.as.connector.util.ConnectorServices;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.as.controller.PathElement;
-import org.jboss.as.controller.ServiceVerificationHandler;
 import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import org.jboss.as.controller.registry.ManagementResourceRegistration;
 import org.jboss.as.controller.registry.Resource;
@@ -112,6 +111,7 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
      */
     @Override
     public void deploy(DeploymentPhaseContext phaseContext) throws DeploymentUnitProcessingException {
+        //TODO check profile
         final DeploymentUnit deploymentUnit = phaseContext.getDeploymentUnit();
 
         final List<DataSources> dataSourcesList = deploymentUnit.getAttachmentList(DsXmlDeploymentParsingProcessor.DATA_SOURCES_ATTACHMENT_KEY);
@@ -123,7 +123,6 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
             }
 
             ServiceTarget serviceTarget = phaseContext.getServiceTarget();
-            ServiceVerificationHandler verificationHandler = new ServiceVerificationHandler();
 
             if (dataSources.getDataSource() != null && dataSources.getDataSource().size() > 0) {
                 for (int i = 0; i < dataSources.getDataSource().size(); i++) {
@@ -131,12 +130,12 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                     if (ds.isEnabled() && ds.getDriver() != null) {
                         try {
                             final String jndiName = Util.cleanJndiName(ds.getJndiName(), ds.isUseJavaContext());
-                            LocalDataSourceService lds = new LocalDataSourceService(jndiName);
+                            LocalDataSourceService lds = new LocalDataSourceService(jndiName, jndiName);
                             lds.getDataSourceConfigInjector().inject(buildDataSource(ds));
                             final String dsName = ds.getJndiName();
                             final PathAddress addr = getDataSourceAddress(dsName, deploymentUnit, false);
                             installManagementModel(ds, deploymentUnit, addr);
-                            startDataSource(lds, jndiName, ds.getDriver(), serviceTarget, verificationHandler,
+                            startDataSource(lds, jndiName, ds.getDriver(), serviceTarget,
                                     getRegistration(false, deploymentUnit), getResource(dsName, false, deploymentUnit), dsName);
                         } catch (Exception e) {
                             throw ConnectorLogger.ROOT_LOGGER.exceptionDeployingDatasource(e, ds.getJndiName());
@@ -153,12 +152,12 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                     if (xads.isEnabled() && xads.getDriver() != null) {
                         try {
                             String jndiName = Util.cleanJndiName(xads.getJndiName(), xads.isUseJavaContext());
-                            XaDataSourceService xds = new XaDataSourceService(jndiName);
+                            XaDataSourceService xds = new XaDataSourceService(jndiName, jndiName);
                             xds.getDataSourceConfigInjector().inject(buildXaDataSource(xads));
                             final String dsName = xads.getJndiName();
                             final PathAddress addr = getDataSourceAddress(dsName, deploymentUnit, true);
                             installManagementModel(xads, deploymentUnit, addr);
-                            startDataSource(xds, jndiName, xads.getDriver(), serviceTarget, verificationHandler,
+                            startDataSource(xds, jndiName, xads.getDriver(), serviceTarget,
                                     getRegistration(true, deploymentUnit), getResource(dsName, true, deploymentUnit), dsName);
 
                         } catch (Exception e) {
@@ -233,7 +232,7 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                 ds.getSecurity(), ds.getStatement(), ds.getValidation(),
                 ds.getUrlDelimiter(), ds.getUrlSelectorStrategyClassName(), ds.getNewConnectionSql(),
                 ds.isUseJavaContext(), ds.getPoolName(), ds.isEnabled(), ds.getJndiName(),
-                ds.isSpy(), ds.isUseCcm(), ds.isJTA(), ds.isConnectable(), ds.isTracking(), ds.getPool());
+                ds.isSpy(), ds.isUseCcm(), ds.isJTA(), ds.isConnectable(), ds.isTracking(), ds.getPool(), null);
     }
 
     private ModifiableXaDataSource buildXaDataSource(XaDataSource xads) throws org.jboss.jca.common.api.validator.ValidateException {
@@ -258,7 +257,7 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                 xads.isUseJavaContext(), xads.getPoolName(), xads.isEnabled(), xads.getJndiName(),
                 xads.isSpy(), xads.isUseCcm(), xads.isConnectable(), xads.isTracking(),
                 xads.getXaDataSourceProperty(), xads.getXaDataSourceClass(), xads.getDriver(),
-                xads.getNewConnectionSql(), xaPool, xads.getRecovery());
+                xads.getNewConnectionSql(), xaPool, xads.getRecovery(), null);
     }
 
     private <T> T getDef(T value, T def) {
@@ -270,7 +269,6 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                                  final String jndiName,
                                  final String driverName,
                                  final ServiceTarget serviceTarget,
-                                 final ServiceVerificationHandler verificationHandler,
                                  final ManagementResourceRegistration registration,
                                  final Resource resource,
                                  final String managementName) {
@@ -341,9 +339,9 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                     }
                 });
 
-        dataSourceServiceBuilder.setInitialMode(ServiceController.Mode.ACTIVE).addListener(verificationHandler).install();
-        referenceBuilder.setInitialMode(ServiceController.Mode.ACTIVE).addListener(verificationHandler).install();
-        binderBuilder.setInitialMode(ServiceController.Mode.ACTIVE).addListener(verificationHandler).install();
+        dataSourceServiceBuilder.setInitialMode(ServiceController.Mode.ACTIVE).install();
+        referenceBuilder.setInitialMode(ServiceController.Mode.ACTIVE).install();
+        binderBuilder.setInitialMode(ServiceController.Mode.ACTIVE).install();
     }
 
     private static PathAddress getDataSourceAddress(final String jndiName, DeploymentUnit deploymentUnit, boolean xa) {

@@ -33,8 +33,6 @@ import org.wildfly.extension.picketlink.federation.Namespace;
 
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
-import org.wildfly.extension.picketlink.logging.PicketLinkLogger;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,11 +59,11 @@ import static org.wildfly.extension.picketlink.common.model.XMLElement.SERVICE_P
  *
  * @author <a href="mailto:psilva@redhat.com">Pedro Silva</a>
  */
-public class FederationSubsystemWriter implements XMLStreamConstants, XMLElementWriter<SubsystemMarshallingContext>  {
-
-    public static final FederationSubsystemWriter INSTANCE = new FederationSubsystemWriter();
+public class FederationSubsystemWriter implements XMLStreamConstants, XMLElementWriter<SubsystemMarshallingContext> {
 
     private static final Map<String, ModelXMLElementWriter> writers = new HashMap<String, ModelXMLElementWriter>();
+
+    public static final FederationSubsystemWriter INSTANCE = new FederationSubsystemWriter();
 
     static {
         // federation elements writers
@@ -76,9 +74,9 @@ public class FederationSubsystemWriter implements XMLStreamConstants, XMLElement
         registerWriter(IDENTITY_PROVIDER_SAML_METADATA);
         registerWriter(IDENTITY_PROVIDER_SAML_METADATA_ORGANIZATION);
         registerWriter(IDENTITY_PROVIDER_TRUST_DOMAIN, COMMON_NAME, XMLElement.TRUST);
-        registerWriter(IDENTITY_PROVIDER_ROLE_GENERATOR);
-        registerWriter(IDENTITY_PROVIDER_ATTRIBUTE_MANAGER);
-        registerWriter(COMMON_HANDLER, HANDLERS);
+        registerWriter(IDENTITY_PROVIDER_ROLE_GENERATOR, COMMON_NAME);
+        registerWriter(IDENTITY_PROVIDER_ATTRIBUTE_MANAGER, COMMON_NAME);
+        registerWriter(COMMON_HANDLER, COMMON_NAME, HANDLERS);
         registerWriter(COMMON_HANDLER_PARAMETER, COMMON_NAME);
         registerWriter(SERVICE_PROVIDER, COMMON_NAME, SERVICE_PROVIDERS);
         registerWriter(SAML);
@@ -90,21 +88,16 @@ public class FederationSubsystemWriter implements XMLStreamConstants, XMLElement
 
     @Override
     public void writeContent(XMLExtendedStreamWriter writer, SubsystemMarshallingContext context) throws XMLStreamException {
-        if (!context.getModelNode().isDefined()) {
-            return;
-        }
-
+        // Start subsystem
         context.startSubsystemElement(Namespace.CURRENT.getUri(), false);
 
-        List<ModelNode> identityManagement = context.getModelNode().asList();
+        ModelNode subsystemNode = context.getModelNode();
 
-        for (ModelNode modelNode : identityManagement) {
-            String modelName = modelNode.asProperty().getName();
+        if (subsystemNode.isDefined()) {
+            List<ModelNode> identityManagement = subsystemNode.asList();
 
-            if (modelName.equals(FEDERATION.getName())) {
+            for (ModelNode modelNode : identityManagement) {
                 writers.get(FEDERATION.getName()).write(writer, modelNode);
-            } else {
-                PicketLinkLogger.ROOT_LOGGER.parserUnexpectedElement(modelName);
             }
         }
 
@@ -120,12 +113,7 @@ public class FederationSubsystemWriter implements XMLStreamConstants, XMLElement
         writers.put(element.getName(), new ModelXMLElementWriter(element, writers));
     }
 
-    private static void registerWriter(final ModelElement element, final XMLElement parent) {
-        writers.put(element.getName(), new ModelXMLElementWriter(element, parent, writers));
-    }
-
     private static void registerWriter(final ModelElement element, final ModelElement keyAttribute, final XMLElement parent) {
         writers.put(element.getName(), new ModelXMLElementWriter(element, keyAttribute.getName(), parent, writers));
     }
-
 }
