@@ -84,6 +84,8 @@
         <version.com.github.relaxng>2011.1</version.com.github.relaxng>
         <version.com.google.guava>17.0</version.com.google.guava>
         <version.com.h2database>1.3.173</version.com.h2database>
+        <version.com.jayway.restassured>1.7</version.com.jayway.restassured>
+        <version.com.jayway.restassured.common>1.8.0</version.com.jayway.restassured.common>
         <version.com.sun.codemodel>2.6</version.com.sun.codemodel>
         <version.com.sun.faces>2.2.9-jbossorg-2</version.com.sun.faces>
         <version.com.sun.istack>2.6.1</version.com.sun.istack>
@@ -100,6 +102,7 @@
         <version.dom4j>1.6.1</version.dom4j>
         <version.gnu.getopt>1.0.13</version.gnu.getopt>
         <version.groovy-all>2.3.4</version.groovy-all>
+        <version.groovy>2.4.0</version.groovy>
         <version.httpunit>1.7</version.httpunit>
         <version.io.netty>4.0.15.Final</version.io.netty>
         <version.io.undertow.jastow>1.0.3.Final</version.io.undertow.jastow>
@@ -108,6 +111,7 @@
         <version.javax.jws.jsr181-api>1.0-MR1</version.javax.jws.jsr181-api>
         <version.javax.mail>1.5.2</version.javax.mail>
         <version.javax.validation>1.1.0.Final</version.javax.validation>
+        <version.javax.xml.bind>2.2.12</version.javax.xml.bind>
         <version.org.jboss.spec.javax.websockets>1.1.0.Final</version.org.jboss.spec.javax.websockets>
         <version.jaxen>1.1.3</version.jaxen>
         <version.jboss.jaxbintros>1.0.2.GA</version.jboss.jaxbintros>
@@ -115,6 +119,7 @@
         <version.jsoup>1.7.1</version.jsoup>
         <version.net.jcip>1.0</version.net.jcip>
         <version.org.apache.avro>1.7.6</version.org.apache.avro>
+        <version.org.apache.commons>3.3.2</version.org.apache.commons>
         <version.org.apache.cxf>3.0.2</version.org.apache.cxf>
         <version.org.apache.cxf.xjcplugins>3.0.2</version.org.apache.cxf.xjcplugins>
         <version.org.apache.ds>2.0.0-M15</version.org.apache.ds>
@@ -139,6 +144,8 @@
         <version.org.glassfish.javax.el>3.0.1-b05-jbossorg-1</version.org.glassfish.javax.el>
         <version.org.glassfish.javax.enterprise.concurrent>1.0</version.org.glassfish.javax.enterprise.concurrent>
         <version.org.glassfish.javax.json>1.0.3</version.org.glassfish.javax.json>
+        <version.org.hamcrest.hamcrest-api>1.0</version.org.hamcrest.hamcrest-api>
+        <version.org.hamcrest.hamcrest-library>1.0</version.org.hamcrest.hamcrest-library>
         <version.org.hibernate>4.3.8.Final</version.org.hibernate>
         <version.org.hibernate.commons.annotations>4.0.5.Final</version.org.hibernate.commons.annotations>
         <version.org.hibernate.validator>5.1.3.Final</version.org.hibernate.validator>
@@ -220,7 +227,7 @@
         <version.org.testng>6.1.1</version.org.testng>
         <version.org.wildfly.build-tools>1.0.0.Alpha8</version.org.wildfly.build-tools>
         <version.org.wildfly.checkstyle-config>1.0.1.Final</version.org.wildfly.checkstyle-config>
-        <version.org.wildfly.core>1.0.0.Alpha15</version.org.wildfly.core>
+        <version.org.wildfly.core>1.0.0.Alpha16-SNAPSHOT</version.org.wildfly.core>
         <version.org.wildfly.arquillian>1.0.0.Alpha4</version.org.wildfly.arquillian>
         <version.org.yaml.snakeyaml>1.13</version.org.yaml.snakeyaml>
         <version.sun.jaxb>2.2.7</version.sun.jaxb>
@@ -287,6 +294,7 @@
         <module>legacy/web</module>
         <module>mail</module>
         <module>messaging</module>
+        <module>metrics</module>
         <module>mod_cluster</module>
         <module>naming</module>
         <module>picketlink</module>
@@ -1274,6 +1282,12 @@
 
             <dependency>
                 <groupId>org.wildfly</groupId>
+                <artifactId>wildfly-metrics</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.wildfly</groupId>
                 <artifactId>wildfly-mod_cluster-extension</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -1613,10 +1627,74 @@
             </dependency>
 
             <dependency>
+	        <groupId>org.hamcrest</groupId>
+	        <artifactId>hamcrest-api</artifactId>
+                <version>${version.org.hamcrest.hamcrest-api}</version>
+            </dependency>
+
+            <dependency>
+	        <groupId>org.hamcrest</groupId>
+	        <artifactId>hamcrest-library</artifactId>
+                <version>${version.org.hamcrest.hamcrest-library}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>com.h2database</groupId>
                 <artifactId>h2</artifactId>
                 <version>${version.com.h2database}</version>
             </dependency>
+
+            <dependency>
+	        <groupId>com.jayway.restassured</groupId>
+	        <artifactId>rest-assured</artifactId>
+                <version>${version.com.jayway.restassured}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.hamcrest</groupId>
+                        <artifactId>hamcrest-core</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.ccil.cowan.tagsoup</groupId>
+                        <artifactId>tagsoup</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <dependency>
+	        <groupId>com.jayway.restassured</groupId>
+	        <artifactId>rest-assured-common</artifactId>
+                <version>${version.com.jayway.restassured.common}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.codehaus.groovy</groupId>
+                        <artifactId>groovy</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.commons</groupId>
+                        <artifactId>commons-lang3</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <!--dependency>
+                <groupId>com.jayway.restassured</groupId>
+                <artifactId>json-path</artifactId>
+                <version>${version.com.jayway.restassured}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.codehaus.groovy</groupId>
+                        <artifactId>groovy-json</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.codehaus.groovy</groupId>
+                        <artifactId>groovy</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.jayway.restassured</groupId>
+                        <artifactId>rest-assured-common</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency-->
 
             <dependency>
                 <groupId>com.sun.codemodel</groupId>
@@ -2002,9 +2080,14 @@
 
             <dependency>
                 <groupId>org.codehaus.groovy</groupId>
+                <artifactId>groovy</artifactId>
+                <version>${version.groovy}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.codehaus.groovy</groupId>
                 <artifactId>groovy-all</artifactId>
                 <version>${version.groovy-all}</version>
-                <scope>test</scope>
             </dependency>
 
             <dependency>
@@ -2049,6 +2132,12 @@
                         <artifactId>commons-compress</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${version.org.apache.commons}</version>
             </dependency>
 
             <dependency>

@@ -198,6 +198,21 @@
         </dependency>
 
         <dependency>
+	    <groupId>com.jayway.restassured</groupId>
+	    <artifactId>rest-assured</artifactId>
+        </dependency>
+
+        <dependency>
+	    <groupId>com.jayway.restassured</groupId>
+	    <artifactId>rest-assured-common</artifactId>
+        </dependency>
+
+        <!--dependency>
+            <groupId>com.jayway.restassured</groupId>
+            <artifactId>json-path</artifactId>
+        </dependency-->
+
+        <dependency>
             <groupId>com.sun.codemodel</groupId>
             <artifactId>codemodel</artifactId>
         </dependency>
@@ -1363,6 +1378,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
         </dependency>
@@ -1524,6 +1544,16 @@
         </dependency>
 
         <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-core-asl</artifactId>
         </dependency>
@@ -1552,6 +1582,16 @@
         <dependency>
             <groupId>org.glassfish</groupId>
             <artifactId>javax.json</artifactId>
+        </dependency>
+
+        <dependency>
+	    <groupId>org.hamcrest</groupId>
+	    <artifactId>hamcrest-api</artifactId>
+        </dependency>
+
+        <dependency>
+	    <groupId>org.hamcrest</groupId>
+	    <artifactId>hamcrest-library</artifactId>
         </dependency>
 
         <dependency>
@@ -2309,6 +2349,17 @@
         <dependency>
             <groupId>org.wildfly</groupId>
             <artifactId>wildfly-messaging</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.wildfly</groupId>
+            <artifactId>wildfly-metrics</artifactId>
             <exclusions>
                 <exclusion>
                     <groupId>*</groupId>
