@@ -18,6 +18,7 @@
       <subsystem>jpa.xml</subsystem>
       <subsystem>jsf.xml</subsystem>
       <subsystem>mail.xml</subsystem>
+      <subsystem>metrics.xml</subsystem>
       <subsystem>naming.xml</subsystem>
       <subsystem>pojo.xml</subsystem>
       <subsystem>remoting.xml</subsystem>

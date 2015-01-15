@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<config>
+   <extension-module>org.jboss.as.metrics</extension-module>
+   <subsystem xmlns="urn:jboss:domain:metrics:1.0">
+        <list-of-metrics>true</list-of-metrics>
+        <datasource>false</datasource>
+   </subsystem>
+</config>
