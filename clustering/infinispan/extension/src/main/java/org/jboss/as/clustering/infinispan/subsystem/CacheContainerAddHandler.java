@@ -27,7 +27,6 @@ import java.util.ServiceLoader;
 import java.util.concurrent.TimeUnit;
 
 import org.infinispan.Cache;
-import org.jboss.as.clustering.controller.Operations;
 import org.jboss.as.clustering.dmr.ModelNodes;
 import org.jboss.as.clustering.jgroups.subsystem.JGroupsBindingFactory;
 import org.jboss.as.clustering.naming.BinderServiceBuilder;
@@ -42,7 +41,6 @@ import org.jboss.as.controller.descriptions.ModelDescriptionConstants;
 import org.jboss.as.controller.registry.Resource;
 import org.jboss.as.naming.deployment.ContextNames;
 import org.jboss.dmr.ModelNode;
-import org.jboss.logging.Logger;
 import org.jboss.modules.ModuleIdentifier;
 import org.jboss.msc.service.ServiceController;
 import org.jboss.msc.service.ServiceTarget;
@@ -75,8 +73,6 @@ import org.wildfly.clustering.spi.LocalGroupBuilderProvider;
  */
 public class CacheContainerAddHandler extends AbstractAddStepHandler {
 
-    private static final Logger log = Logger.getLogger(CacheContainerAddHandler.class.getPackage().getName());
-
     CacheContainerAddHandler() {
         super(CacheContainerResourceDefinition.ATTRIBUTES);
     }
@@ -88,8 +84,7 @@ public class CacheContainerAddHandler extends AbstractAddStepHandler {
     }
 
     static void installRuntimeServices(OperationContext context, ModelNode operation, ModelNode model) throws OperationFailedException {
-        PathAddress address = Operations.getPathAddress(operation);
-        String name = address.getLastElement().getValue();
+        String name = context.getCurrentAddressValue();
 
         // Handle case where ejb subsystem has already installed services for this cache-container
         // This can happen if the ejb cache-container is added to a running server
@@ -142,7 +137,6 @@ public class CacheContainerAddHandler extends AbstractAddStepHandler {
                 new AliasServiceBuilder<>(ChannelServiceName.FACTORY.getServiceName(name), ProtocolStackServiceName.CHANNEL_FACTORY.getServiceName(channel), ChannelFactory.class).build(target).install();
 
                 for (GroupBuilderProvider provider : ServiceLoader.load(ClusteredGroupBuilderProvider.class, ClusteredGroupBuilderProvider.class.getClassLoader())) {
-                    log.debugf("Installing %s for cache container %s", provider.getClass().getSimpleName(), name);
                     Iterator<Builder<?>> builders = provider.getBuilders(channel, module).iterator();
                     for (Builder<?> builder : provider.getBuilders(name, module)) {
                         new AliasServiceBuilder<>(builder.getServiceName(), builders.next().getServiceName(), Object.class).build(target).install();
@@ -151,9 +145,9 @@ public class CacheContainerAddHandler extends AbstractAddStepHandler {
             }
         } else {
             for (GroupBuilderProvider provider : ServiceLoader.load(LocalGroupBuilderProvider.class, LocalGroupBuilderProvider.class.getClassLoader())) {
-                log.debugf("Installing %s for cache container %s", provider.getClass().getSimpleName(), name);
+                Iterator<Builder<?>> builders = provider.getBuilders(LocalGroupBuilderProvider.LOCAL, module).iterator();
                 for (Builder<?> builder : provider.getBuilders(name, module)) {
-                    builder.build(target).install();
+                    new AliasServiceBuilder<>(builder.getServiceName(), builders.next().getServiceName(), Object.class).build(target).install();
                 }
             }
         }
@@ -192,8 +186,8 @@ public class CacheContainerAddHandler extends AbstractAddStepHandler {
             new BinderServiceBuilder<>(InfinispanBindingFactory.createCacheBinding(name, CacheServiceNameFactory.DEFAULT_CACHE), CacheServiceName.CACHE.getServiceName(name), Cache.class).build(target).install();
 
             Class<? extends CacheGroupBuilderProvider> providerClass = model.hasDefined(TransportResourceDefinition.PATH.getKey()) ? ClusteredCacheGroupBuilderProvider.class : LocalCacheGroupBuilderProvider.class;
-            for (CacheGroupBuilderProvider installer : ServiceLoader.load(providerClass, providerClass.getClassLoader())) {
-                for (Builder<?> builder : installer.getBuilders(name, CacheServiceNameFactory.DEFAULT_CACHE)) {
+            for (CacheGroupBuilderProvider provider : ServiceLoader.load(providerClass, providerClass.getClassLoader())) {
+                for (Builder<?> builder : provider.getBuilders(name, CacheServiceNameFactory.DEFAULT_CACHE)) {
                     builder.build(target).install();
                 }
             }
@@ -201,7 +195,7 @@ public class CacheContainerAddHandler extends AbstractAddStepHandler {
     }
 
     static void removeRuntimeServices(OperationContext context, ModelNode operation, ModelNode model) throws OperationFailedException {
-        String name = Operations.getPathAddress(operation).getLastElement().getValue();
+        String name = context.getCurrentAddressValue();
 
         // remove the BinderService entry
         context.removeService(InfinispanBindingFactory.createCacheContainerBinding(name).getBinderServiceName());

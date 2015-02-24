@@ -150,7 +150,7 @@ public class ParsedRaDeploymentProcessor implements DeploymentUnitProcessor {
                 });
 
             }
-            builder.addListener(new AbstractResourceAdapterDeploymentServiceListener(registration, deploymentUnit.getName(), deploymentResource, bootstrapCtx, deploymentUnit.getName()) {
+            builder.addListener(new AbstractResourceAdapterDeploymentServiceListener(registration, deploymentUnit.getName(), deploymentResource, bootstrapCtx, deploymentUnit.getName(), false) {
 
                 @Override
                 protected void registerIronjacamar(final ServiceController<? extends Object> controller, final ManagementResourceRegistration subRegistration, final Resource subsystemResource) {
@@ -213,8 +213,7 @@ public class ParsedRaDeploymentProcessor implements DeploymentUnitProcessor {
 
 
             // Create the service
-            ServiceBuilder builder =
-                    Services.addServerExecutorDependency(
+            return Services.addServerExecutorDependency(
                         serviceTarget.addService(deployerServiceName, raDeploymentService),
                         raDeploymentService.getExecutorServiceInjector(), false)
                     .addDependency(ConnectorServices.IRONJACAMAR_MDR, AS7MetadataRepository.class, raDeploymentService.getMdrInjector())
@@ -228,8 +227,6 @@ public class ParsedRaDeploymentProcessor implements DeploymentUnitProcessor {
                     .addDependency(ConnectorServices.IDLE_REMOVER_SERVICE)
                     .addDependency(ConnectorServices.CONNECTION_VALIDATOR_SERVICE)
                     .addDependency(NamingService.SERVICE_NAME);
-
-            return builder;
         } catch (Throwable t) {
             throw new DeploymentUnitProcessingException(t);
         }

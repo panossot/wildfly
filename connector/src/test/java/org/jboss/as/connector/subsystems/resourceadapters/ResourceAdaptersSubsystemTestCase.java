@@ -23,6 +23,7 @@ package org.jboss.as.connector.subsystems.resourceadapters;
 
 import static org.jboss.as.connector.subsystems.resourceadapters.Constants.MODULE;
 import static org.jboss.as.connector.subsystems.resourceadapters.Constants.RESOURCEADAPTER_NAME;
+import static org.jboss.as.connector.subsystems.resourceadapters.Constants.STATISTICS_ENABLED;
 import static org.jboss.as.connector.subsystems.resourceadapters.Constants.TRACKING;
 import static org.jboss.as.connector.subsystems.resourceadapters.Constants.WM_SECURITY;
 import static org.jboss.as.connector.subsystems.resourceadapters.Constants.WM_SECURITY_DOMAIN;
@@ -31,6 +32,7 @@ import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SUB
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Properties;
 
 import org.jboss.as.connector.logging.ConnectorLogger;
 import org.jboss.as.controller.ModelVersion;
@@ -63,6 +65,30 @@ public class ResourceAdaptersSubsystemTestCase extends AbstractSubsystemBaseTest
     @Override
     protected String getSubsystemXml() throws IOException {
         return readResource("empty-resourceadapters.xml");
+    }
+
+    @Override
+    protected String getSubsystemXsdPath() throws Exception {
+        return "schema/wildfly-resource-adapters_3_0.xsd";
+    }
+
+    @Override
+    protected String[] getSubsystemTemplatePaths() throws IOException {
+        return new String[] {
+                "/subsystem-templates/resource-adapters.xml",
+                "/subsystem-templates/resource-adapters-genericjms.xml"
+        };
+    }
+
+    @Override
+    protected Properties getResolvedProperties() {
+        Properties properties = new Properties();
+        properties.put("genericjms.cf.jndi-name", "genericjms");
+        properties.put("genericjms.cf.pool-name", "mypool");
+        properties.put("genericjms.cf.jndi.contextfactory", "foo");
+        properties.put("genericjms.cf.jndi.url", "bar");
+        properties.put("genericjms.cf.jndi.lookup", "baz");
+        return properties;
     }
 
     @Test
@@ -215,7 +241,7 @@ public class ResourceAdaptersSubsystemTestCase extends AbstractSubsystemBaseTest
         ModelTestUtils.checkFailedTransformedBootOperations(mainServices, modelVersion, ops, new FailedOperationTransformationConfig()
                 .addFailedAttribute(subsystemAddress.append(PathElement.pathElement(RESOURCEADAPTER_NAME)),
                         new FailedOperationTransformationConfig.AttributesPathAddressConfig(WM_SECURITY.getName(), WM_SECURITY_MAPPING_REQUIRED.getName(),
-                                WM_SECURITY_DOMAIN.getName(), MODULE.getName()) {
+                                WM_SECURITY_DOMAIN.getName(), MODULE.getName(), STATISTICS_ENABLED.getName()) {
                             @Override
                             protected boolean isAttributeWritable(String attributeName) {
                                 return false;
