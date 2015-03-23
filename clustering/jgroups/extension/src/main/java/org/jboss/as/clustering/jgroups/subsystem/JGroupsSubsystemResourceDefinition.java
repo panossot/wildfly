@@ -60,6 +60,7 @@ public class JGroupsSubsystemResourceDefinition extends SimpleResourceDefinition
             .setXmlName(Attribute.DEFAULT.getLocalName())
             .setAllowExpression(true)
             .setFlags(AttributeAccess.Flag.RESTART_ALL_SERVICES)
+            .setDeprecated(JGroupsModel.VERSION_3_0_0.getVersion())
             .build()
     ;
 
@@ -88,7 +89,7 @@ public class JGroupsSubsystemResourceDefinition extends SimpleResourceDefinition
     }
 
     JGroupsSubsystemResourceDefinition(boolean allowRuntimeOnlyRegistration) {
-        super(PATH, JGroupsExtension.getResourceDescriptionResolver(), new JGroupsSubsystemAddHandler(), new JGroupsSubsystemRemoveHandler(allowRuntimeOnlyRegistration));
+        super(PATH, new JGroupsResourceDescriptionResolver(), new JGroupsSubsystemAddHandler(), new JGroupsSubsystemRemoveHandler(allowRuntimeOnlyRegistration));
         this.allowRuntimeOnlyRegistration = allowRuntimeOnlyRegistration;
     }
 
