@@ -350,6 +350,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.jboss.metrics</groupId>
+            <artifactId>AutomatedMetricsApi</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.jboss.openjdk-orb</groupId>
             <artifactId>openjdk-orb</artifactId>
         </dependency>
@@ -1868,6 +1873,17 @@
         <dependency>
             <groupId>org.jboss</groupId>
             <artifactId>jboss-iiop-client</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.wildfly</groupId>
+            <artifactId>wildfly-automated-metrics</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

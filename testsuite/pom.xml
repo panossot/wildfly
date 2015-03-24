@@ -1210,6 +1210,7 @@
                                                     <fileset dir="../mail/src/main/java"><include name="**/*.java"/></fileset>
                                                     <fileset dir="../management-client-content/src/main/java"><include name="**/*.java"/></fileset>
                                                     <fileset dir="../messaging/src/main/java"><include name="**/*.java"/></fileset>
+                                                    <fileset dir="../metrics/src/main/java"><include name="**/*.java"/></fileset>
                                                     <fileset dir="../modcluster/src/main/java"><include name="**/*.java"/></fileset>
                                                     <fileset dir="../naming/src/main/java"><include name="**/*.java"/></fileset>
                                                     <fileset dir="../network/src/main/java"><include name="**/*.java"/></fileset>
