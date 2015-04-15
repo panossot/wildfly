@@ -19,7 +19,6 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-
 package org.jboss.as.weld.deployment.processors;
 
 import org.jboss.as.server.deployment.Attachments;
@@ -50,8 +49,7 @@ public class WeldDependencyProcessor implements DeploymentUnitProcessor {
     private static ModuleIdentifier CDI_BEAN_VALIDATION_ID = ModuleIdentifier.create("org.hibernate.validator.cdi");
     private static ModuleIdentifier JAVAX_ENTERPRISE_API = ModuleIdentifier.create("javax.enterprise.api");
     private static ModuleIdentifier JAVAX_INJECT_API = ModuleIdentifier.create("javax.inject.api");
-
-
+    private static final ModuleIdentifier ORG_JBOSS_METRICS = ModuleIdentifier.create("org.jboss.metrics.MetricsInterceptor");
 
     /**
      * Add dependencies for modules required for weld deployments, if managed weld configurations are attached to the deployment
@@ -73,18 +71,22 @@ public class WeldDependencyProcessor implements DeploymentUnitProcessor {
         addDependency(moduleSpecification, moduleLoader, WELD_API_ID);
         addDependency(moduleSpecification, moduleLoader, WELD_SPI_ID);
 
-
         ModuleDependency dep = new ModuleDependency(moduleLoader, JBOSS_AS_WELD_ID, false, false, false, false);
         dep.addImportFilter(PathFilters.getMetaInfFilter(), true);
         dep.addExportFilter(PathFilters.getMetaInfFilter(), true);
         moduleSpecification.addSystemDependency(dep);
+
+        ModuleDependency dep2 = new ModuleDependency(moduleLoader, ORG_JBOSS_METRICS, false, false, true, false);
+        dep2.addImportFilter(PathFilters.getMetaInfFilter(), true);
+        dep2.addExportFilter(PathFilters.getMetaInfFilter(), true);
+        moduleSpecification.addSystemDependency(dep2);
 
         ModuleDependency cdiBeanValidationDep = new ModuleDependency(moduleLoader, CDI_BEAN_VALIDATION_ID, false, false, true, false);
         moduleSpecification.addSystemDependency(cdiBeanValidationDep);
     }
 
     private void addDependency(ModuleSpecification moduleSpecification, ModuleLoader moduleLoader,
-                               ModuleIdentifier moduleIdentifier) {
+            ModuleIdentifier moduleIdentifier) {
         moduleSpecification.addSystemDependency(new ModuleDependency(moduleLoader, moduleIdentifier, false, false, true, false));
     }
 
