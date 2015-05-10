@@ -71,7 +71,7 @@ public class JPAExtension implements Extension {
 
     private static final String RESOURCE_NAME = JPAExtension.class.getPackage().getName() + ".LocalDescriptions";
 
-    static StandardResourceDescriptionResolver getResourceDescriptionResolver(final String... keyPrefix) {
+    public static StandardResourceDescriptionResolver getResourceDescriptionResolver(final String... keyPrefix) {
         StringBuilder prefix = new StringBuilder(SUBSYSTEM_NAME);
         for (String kp : keyPrefix) {
             prefix.append('.').append(kp);
@@ -99,8 +99,7 @@ public class JPAExtension implements Extension {
         }
 
         if (context.isRuntimeOnlyRegistrationValid()) {
-            final ManagementResourceRegistration jpaSubsystemDeployments = registration.registerDeploymentModel(JPADefinition.INSTANCE);
-
+            registration.registerDeploymentModel(JPADefinition.INSTANCE);
         }
     }
 

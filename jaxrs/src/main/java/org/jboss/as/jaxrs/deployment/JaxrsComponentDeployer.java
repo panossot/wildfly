@@ -30,7 +30,6 @@ import org.jboss.as.ee.component.EEModuleDescription;
 import org.jboss.as.ee.component.ViewDescription;
 import org.jboss.as.ee.managedbean.component.ManagedBeanComponentDescription;
 import org.jboss.as.ee.weld.WeldDeploymentMarker;
-import org.jboss.as.jaxrs.logging.JaxrsLogger;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
@@ -102,7 +101,7 @@ public class JaxrsComponentDeployer implements DeploymentUnitProcessor {
                     }
                 }
 
-                Class[] jaxrsType = GetRestful.getSubResourceClasses(componentClass);
+                Class<?>[] jaxrsType = GetRestful.getSubResourceClasses(componentClass);
                 final String jndiName;
                 if (component.getViews().size() == 1) {
                     //only 1 view, just use the simple JNDI name
@@ -111,7 +110,7 @@ public class JaxrsComponentDeployer implements DeploymentUnitProcessor {
                     boolean found = false;
                     String foundType = null;
                     for (final ViewDescription view : component.getViews()) {
-                        for (Class subResource : jaxrsType) {
+                        for (Class<?> subResource : jaxrsType) {
                             if (view.getViewClassName().equals(subResource.getName())) {
                                 foundType = subResource.getName();
                                 found = true;
@@ -123,7 +122,7 @@ public class JaxrsComponentDeployer implements DeploymentUnitProcessor {
                         }
                     }
                     if (!found) {
-                        throw JaxrsLogger.JAXRS_LOGGER.typeNameNotAnEjbView(Arrays.asList(jaxrsType), component.getComponentName());
+                        throw JAXRS_LOGGER.typeNameNotAnEjbView(Arrays.asList(jaxrsType), component.getComponentName());
                     }
                     jndiName = "java:app/" + moduleDescription.getModuleName() + "/" + component.getComponentName() + "!" + foundType;
                 }

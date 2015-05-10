@@ -47,7 +47,6 @@ import org.jboss.as.controller.registry.AttributeAccess;
 import org.jboss.as.controller.registry.ManagementResourceRegistration;
 import org.jboss.as.controller.registry.Resource.NoSuchResourceException;
 import org.jboss.as.controller.transform.TransformationContext;
-import org.jboss.as.controller.transform.description.RejectAttributeChecker;
 import org.jboss.as.controller.transform.description.ResourceTransformationDescriptionBuilder;
 import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
@@ -72,6 +71,7 @@ public class TransportResourceDefinition extends SimpleResourceDefinition {
             .setXmlName(Attribute.EXECUTOR.getLocalName())
             .setAllowExpression(false)
             .setFlags(AttributeAccess.Flag.RESTART_ALL_SERVICES)
+            .setDeprecated(InfinispanModel.VERSION_3_0_0.getVersion())
             .build();
 
     static final SimpleAttributeDefinition LOCK_TIMEOUT = new SimpleAttributeDefinitionBuilder(ModelKeys.LOCK_TIMEOUT, ModelType.LONG, true)
@@ -198,10 +198,6 @@ public class TransportResourceDefinition extends SimpleResourceDefinition {
                     .setValueConverter(new SimpleAttributeConverter(stackConverter), STACK)
                     .addRename(CHANNEL, CLUSTER.getName())
                     .end();
-        }
-
-        if (InfinispanModel.VERSION_1_4_0.requiresTransformation(version)) {
-            builder.getAttributeBuilder().addRejectCheck(RejectAttributeChecker.SIMPLE_EXPRESSIONS, STACK, EXECUTOR, LOCK_TIMEOUT);
         }
     }
 

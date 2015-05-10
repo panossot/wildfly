@@ -25,8 +25,12 @@ package org.wildfly.extension.batch;
 import org.jboss.as.controller.Extension;
 import org.jboss.as.controller.ExtensionContext;
 import org.jboss.as.controller.ModelVersion;
+import org.jboss.as.controller.SimpleResourceDefinition;
 import org.jboss.as.controller.SubsystemRegistration;
 import org.jboss.as.controller.parsing.ExtensionParsingContext;
+import org.jboss.as.controller.registry.ManagementResourceRegistration;
+import org.wildfly.extension.batch.deployment.BatchJobExecutionResourceDefinition;
+import org.wildfly.extension.batch.deployment.BatchJobResourceDefinition;
 
 public class BatchSubsystemExtension implements Extension {
 
@@ -34,6 +38,7 @@ public class BatchSubsystemExtension implements Extension {
      * Version numbers for batch subsystem management interface.
      */
     private static final ModelVersion CURRENT_MODEL_VERSION = ModelVersion.create(1, 0, 0);
+    public static final String SUBSYSTEM_NAME = BatchSubsystemDefinition.NAME;
 
     @Override
     public void initializeParsers(ExtensionParsingContext context) {
@@ -50,5 +55,14 @@ public class BatchSubsystemExtension implements Extension {
         final SubsystemRegistration subsystem = context.registerSubsystem(BatchSubsystemDefinition.NAME, CURRENT_MODEL_VERSION);
         subsystem.registerSubsystemModel(BatchSubsystemDefinition.INSTANCE);
         subsystem.registerXMLElementWriter(BatchSubsystemParser.INSTANCE);
+        // Register the deployment resources
+        if (context.isRuntimeOnlyRegistrationValid()) {
+            final SimpleResourceDefinition deploymentResource = new SimpleResourceDefinition(
+                    BatchSubsystemDefinition.SUBSYSTEM_PATH,
+                    BatchResourceDescriptionResolver.getResourceDescriptionResolver("deployment"));
+            final ManagementResourceRegistration deployments = subsystem.registerDeploymentModel(deploymentResource);
+            final ManagementResourceRegistration jobRegistration = deployments.registerSubModel(BatchJobResourceDefinition.INSTANCE);
+            jobRegistration.registerSubModel(new BatchJobExecutionResourceDefinition()).setRuntimeOnly(true);
+        }
     }
 }

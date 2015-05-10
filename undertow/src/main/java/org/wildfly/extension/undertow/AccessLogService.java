@@ -24,12 +24,12 @@
 
 package org.wildfly.extension.undertow;
 
-import java.io.File;
-
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.accesslog.AccessLogHandler;
 import io.undertow.server.handlers.accesslog.AccessLogReceiver;
 import io.undertow.server.handlers.accesslog.DefaultAccessLogReceiver;
+import io.undertow.server.handlers.accesslog.JBossLoggingAccessLogReceiver;
+import org.jboss.as.controller.services.path.PathManager;
 import org.jboss.msc.service.Service;
 import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
@@ -38,41 +38,75 @@ import org.jboss.msc.value.InjectedValue;
 import org.wildfly.extension.undertow.logging.UndertowLogger;
 import org.xnio.XnioWorker;
 
+import java.io.File;
+
 /**
  * @author Tomaz Cerar (c) 2013 Red Hat Inc.
  */
 class AccessLogService implements Service<AccessLogService> {
     protected final InjectedValue<XnioWorker> worker = new InjectedValue<>();
     private final String pattern;
-    private final File directory;
+    private final String path;
+    private final String pathRelativeTo;
     private final String filePrefix;
     private final String fileSuffix;
+    private final boolean useServerLog;
     private volatile AccessLogReceiver logReceiver;
 
-    AccessLogService(String pattern, File directory, String filePrefix, String fileSuffix) {
+
+    private PathManager.Callback.Handle callbackHandle;
+
+    private File directory;
+
+    private final InjectedValue<PathManager> pathManager = new InjectedValue<PathManager>();
+
+
+    AccessLogService(String pattern) {
         this.pattern = pattern;
-        this.directory = directory;
+        this.path = null;
+        this.pathRelativeTo = null;
+        this.filePrefix = null;
+        this.fileSuffix = null;
+        this.useServerLog = true;
+    }
+
+    AccessLogService(String pattern, String path, String pathRelativeTo, String filePrefix, String fileSuffix) {
+        this.pattern = pattern;
+        this.path = path;
+        this.pathRelativeTo = pathRelativeTo;
         this.filePrefix = filePrefix;
         this.fileSuffix = fileSuffix;
+        this.useServerLog = false;
     }
 
     @Override
     public void start(StartContext context) throws StartException {
-        if (!directory.exists()) {
-            if (!directory.mkdirs()){
-                throw UndertowLogger.ROOT_LOGGER.couldNotCreateLogDirectory(directory);
+        if (useServerLog) {
+            logReceiver = new JBossLoggingAccessLogReceiver();
+        } else {
+            if (pathRelativeTo != null) {
+                callbackHandle = pathManager.getValue().registerCallback(pathRelativeTo, PathManager.ReloadServerCallback.create(), PathManager.Event.UPDATED, PathManager.Event.REMOVED);
             }
-        }
-        try {
-            logReceiver = new DefaultAccessLogReceiver(worker.getValue(), directory, filePrefix, fileSuffix);
-        } catch (IllegalStateException e) {
-            throw new StartException(e);
+            directory = new File(pathManager.getValue().resolveRelativePathEntry(path, pathRelativeTo));
+            if (!directory.exists()) {
+                if (!directory.mkdirs()) {
+                    throw UndertowLogger.ROOT_LOGGER.couldNotCreateLogDirectory(directory);
+                }
+            }
+            try {
+                logReceiver = new DefaultAccessLogReceiver(worker.getValue(), directory, filePrefix, fileSuffix);
+            } catch (IllegalStateException e) {
+                throw new StartException(e);
+            }
         }
     }
 
     @Override
     public void stop(StopContext context) {
-
+        if (callbackHandle != null) {
+            callbackHandle.remove();
+            callbackHandle = null;
+        }
     }
 
     @Override
@@ -82,6 +116,10 @@ class AccessLogService implements Service<AccessLogService> {
 
     InjectedValue<XnioWorker> getWorker() {
         return worker;
+    }
+
+    InjectedValue<PathManager> getPathManager() {
+        return pathManager;
     }
 
     protected AccessLogHandler configureAccessLogHandler(HttpHandler handler) {

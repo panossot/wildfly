@@ -23,15 +23,14 @@
 package org.wildfly.jberet.services;
 
 import java.util.Properties;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import javax.enterprise.inject.spi.BeanManager;
 import javax.transaction.TransactionManager;
 
 import org.jberet.repository.JobRepository;
 import org.jberet.spi.ArtifactFactory;
 import org.jberet.spi.BatchEnvironment;
+import org.jberet.spi.JobXmlResolver;
 import org.jboss.msc.service.Service;
 import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
@@ -55,6 +54,7 @@ public class BatchEnvironmentService implements Service<BatchEnvironment> {
     private final InjectedValue<BeanManager> beanManagerInjector = new InjectedValue<>();
     private final InjectedValue<ExecutorService> executorServiceInjector = new InjectedValue<>();
     private final InjectedValue<TransactionManager> transactionManagerInjector = new InjectedValue<>();
+    private final InjectedValue<JobXmlResolver> jobXmlResolverInjector = new InjectedValue<>();
 
     private final JobRepository jobRepository;
     private final ClassLoader classLoader;
@@ -69,7 +69,7 @@ public class BatchEnvironmentService implements Service<BatchEnvironment> {
     public synchronized void start(final StartContext context) throws StartException {
         WildFlyBatchLogger.LOGGER.debugf("Creating batch environment; %s", classLoader);
         final BatchEnvironment batchEnvironment = new WildFlyBatchEnvironment(beanManagerInjector.getOptionalValue(),
-                executorServiceInjector.getValue(), transactionManagerInjector.getValue());
+                executorServiceInjector.getValue(), transactionManagerInjector.getValue(), jobXmlResolverInjector.getValue());
         // Add the service to the factory
         BatchEnvironmentFactory.getInstance().add(classLoader, batchEnvironment);
         this.batchEnvironment = batchEnvironment;
@@ -99,14 +99,20 @@ public class BatchEnvironmentService implements Service<BatchEnvironment> {
         return transactionManagerInjector;
     }
 
+    public InjectedValue<JobXmlResolver> getJobXmlResolverInjector() {
+        return jobXmlResolverInjector;
+    }
+
     private class WildFlyBatchEnvironment implements BatchEnvironment {
 
         private final ArtifactFactory artifactFactory;
         private final ExecutorService executorService;
         private final TransactionManager transactionManager;
+        private final JobXmlResolver jobXmlResolver;
 
         WildFlyBatchEnvironment(final BeanManager beanManager,
-                                final ExecutorService executorService, final TransactionManager transactionManager) {
+                                final ExecutorService executorService, final TransactionManager transactionManager, final JobXmlResolver jobXmlResolver) {
+            this.jobXmlResolver = jobXmlResolver;
             artifactFactory = new WildFlyArtifactFactory(beanManager);
             this.executorService = executorService;
             this.transactionManager = transactionManager;
@@ -123,46 +129,14 @@ public class BatchEnvironmentService implements Service<BatchEnvironment> {
         }
 
         @Override
-        public Future<?> submitTask(final Runnable task) {
+        public void submitTask(final Runnable task) {
             final ContextHandle contextHandle = createContextHandle();
-            return executorService.submit(new Runnable() {
+            executorService.submit(new Runnable() {
                 @Override
                 public void run() {
                     final Handle handle = contextHandle.setup();
                     try {
                         task.run();
-                    } finally {
-                        handle.tearDown();
-                    }
-                }
-            });
-        }
-
-        @Override
-        public <T> Future<T> submitTask(final Runnable task, final T result) {
-            final ContextHandle contextHandle = createContextHandle();
-            return executorService.submit(new Runnable() {
-                @Override
-                public void run() {
-                    final Handle handle = contextHandle.setup();
-                    try {
-                        task.run();
-                    } finally {
-                        handle.tearDown();
-                    }
-                }
-            }, result);
-        }
-
-        @Override
-        public <T> Future<T> submitTask(final Callable<T> task) {
-            final ContextHandle contextHandle = createContextHandle();
-            return executorService.submit(new Callable<T>() {
-                @Override
-                public T call() throws Exception {
-                    final Handle handle = contextHandle.setup();
-                    try {
-                        return task.call();
                     } finally {
                         handle.tearDown();
                     }
@@ -178,6 +152,11 @@ public class BatchEnvironmentService implements Service<BatchEnvironment> {
         @Override
         public JobRepository getJobRepository() {
             return jobRepository;
+        }
+
+        @Override
+        public JobXmlResolver getJobXmlResolver() {
+            return jobXmlResolver;
         }
 
         /**

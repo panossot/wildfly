@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.infinispan.transaction.LockingMode;
+import org.jboss.as.clustering.controller.MetricHandler;
 import org.jboss.as.clustering.controller.Operations;
 import org.jboss.as.clustering.controller.ReloadRequiredAddStepHandler;
 import org.jboss.as.clustering.controller.transform.AttributeOperationTransformer;
@@ -54,7 +55,6 @@ import org.jboss.as.controller.registry.Resource;
 import org.jboss.as.controller.transform.OperationResultTransformer;
 import org.jboss.as.controller.transform.ResourceTransformationContext;
 import org.jboss.as.controller.transform.ResourceTransformer;
-import org.jboss.as.controller.transform.description.RejectAttributeChecker;
 import org.jboss.as.controller.transform.description.ResourceTransformationDescriptionBuilder;
 import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
@@ -193,13 +193,6 @@ public class TransactionResourceDefinition extends SimpleResourceDefinition {
             };
             builder.setCustomResourceTransformer(modeTransformer);
         }
-        if (InfinispanModel.VERSION_1_4_0.requiresTransformation(version)) {
-            builder.getAttributeBuilder()
-                    .addRejectCheck(RejectAttributeChecker.SIMPLE_EXPRESSIONS, MODE)
-                    .addRejectCheck(RejectAttributeChecker.SIMPLE_EXPRESSIONS, STOP_TIMEOUT)
-                    .addRejectCheck(RejectAttributeChecker.SIMPLE_EXPRESSIONS, LOCKING)
-                    .end();
-        }
 
         buildOperationTransformation(builder, ModelDescriptionConstants.ADD, addOperationTransformers);
         buildOperationTransformation(builder, ModelDescriptionConstants.REMOVE, removeOperationTransformers);
@@ -238,11 +231,7 @@ public class TransactionResourceDefinition extends SimpleResourceDefinition {
         }
 
         if (this.allowRuntimeOnlyRegistration) {
-            // register any metrics
-            OperationStepHandler handler = new TransactionMetricsHandler();
-            for (TransactionMetric metric: TransactionMetric.values()) {
-                registration.registerMetric(metric.getDefinition(), handler);
-            }
+            new MetricHandler<>(new TransactionMetricExecutor(), TransactionMetric.class).register(registration);
         }
     }
 }

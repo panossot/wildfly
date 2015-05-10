@@ -116,17 +116,19 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                     CacheContainerResourceDefinition.REPLICATION_QUEUE_EXECUTOR.parseAndSetParameter(value, operation, reader);
                     break;
                 }
+                case START: {
+                    if (this.schema.since(InfinispanSchema.VERSION_1_1) && !this.schema.since(InfinispanSchema.VERSION_3_0)) {
+                        // Ignore - we no longer support EAGER mode
+                    } else {
+                        throw ParseUtils.unexpectedAttribute(reader, i);
+                    }
+                    break;
+                }
                 case ALIASES: {
                     if (this.schema.since(InfinispanSchema.VERSION_1_1)) {
                         for (String alias: reader.getListAttributeValue(i)) {
-                            operation.get(CacheContainerResourceDefinition.ALIASES.getName()).add(alias);
+                            CacheContainerResourceDefinition.ALIASES.parseAndAddParameterElement(alias, operation, reader);
                         }
-                        break;
-                    }
-                }
-                case START: {
-                    if (this.schema.since(InfinispanSchema.VERSION_1_1)) {
-                        CacheContainerResourceDefinition.START.parseAndSetParameter(value, operation, reader);
                         break;
                     }
                 }
@@ -137,7 +139,7 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                     }
                 }
                 case STATISTICS_ENABLED: {
-                    if (this.schema.since(InfinispanSchema.VERSION_2_0)) {
+                    if (this.schema.since(InfinispanSchema.VERSION_1_5)) {
                         CacheContainerResourceDefinition.STATISTICS_ENABLED.parseAndSetParameter(value, operation, reader);
                         break;
                     }
@@ -147,7 +149,7 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                 }
             }
         }
-        if (!this.schema.since(InfinispanSchema.VERSION_2_0)) {
+        if (!this.schema.since(InfinispanSchema.VERSION_1_5)) {
             operation.get(CacheContainerResourceDefinition.STATISTICS_ENABLED.getName()).set(true);
         }
 
@@ -156,7 +158,7 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
             switch (element) {
                 case ALIAS: {
                     if (InfinispanSchema.VERSION_1_0.since(this.schema)) {
-                        operation.get(CacheContainerResourceDefinition.ALIASES.getName()).add(reader.getElementText());
+                        CacheContainerResourceDefinition.ALIASES.parseAndAddParameterElement(reader.getElementText(), operation, reader);
                         break;
                     }
                 }
@@ -323,8 +325,7 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                 case VIRTUAL_NODES: {
                     if (!this.schema.since(InfinispanSchema.VERSION_1_4)) {
                         // AS7-5753: convert any non-expression virtual nodes value to a segments value,
-                        String virtualNodes = DistributedCacheResourceDefinition.VIRTUAL_NODES.parse(value, reader).toString();
-                        String segments = SegmentsAndVirtualNodeConverter.virtualNodesToSegments(virtualNodes);
+                        String segments = SegmentsAndVirtualNodeConverter.virtualNodesToSegments(value);
                         DistributedCacheResourceDefinition.SEGMENTS.parseAndSetParameter(segments, operation, reader);
                         break;
                     }
@@ -405,7 +406,11 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                 break;
             }
             case START: {
-                CacheResourceDefinition.START.parseAndSetParameter(value, operation, reader);
+                if (!this.schema.since(InfinispanSchema.VERSION_3_0)) {
+                    // Ignore - we no longer support EAGER mode
+                } else {
+                    throw ParseUtils.unexpectedAttribute(reader, index);
+                }
                 break;
             }
             case BATCHING: {
@@ -414,14 +419,18 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                     ModelNode transactionOperation = Util.createAddOperation(transactionAddress);
                     transactionOperation.get(TransactionResourceDefinition.MODE.getName()).set(new ModelNode(TransactionMode.BATCH.name()));
                     operations.put(transactionAddress, transactionOperation);
-                    break;
+                } else {
+                    throw ParseUtils.unexpectedAttribute(reader, index);
                 }
+                break;
             }
             case INDEXING: {
                 if (!this.schema.since(InfinispanSchema.VERSION_1_4)) {
                     CacheResourceDefinition.INDEXING.parseAndSetParameter(value, operation, reader);
-                    break;
+                } else {
+                    throw ParseUtils.unexpectedAttribute(reader, index);
                 }
+                break;
             }
             case JNDI_NAME: {
                 if (this.schema.since(InfinispanSchema.VERSION_1_1)) {
@@ -436,7 +445,7 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                 }
             }
             case STATISTICS_ENABLED: {
-                if (this.schema.since(InfinispanSchema.VERSION_2_0)) {
+                if (this.schema.since(InfinispanSchema.VERSION_1_5)) {
                     CacheResourceDefinition.STATISTICS_ENABLED.parseAndSetParameter(value, operation, reader);
                     break;
                 }
@@ -445,7 +454,7 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                 throw ParseUtils.unexpectedAttribute(reader, index);
             }
         }
-        if (!this.schema.since(InfinispanSchema.VERSION_2_0)) {
+        if (!this.schema.since(InfinispanSchema.VERSION_1_5)) {
             // We need to explicitly enable statistics (to reproduce old behavior), since the new attribute defaults to false.
             operation.get(CacheResourceDefinition.STATISTICS_ENABLED.getName()).set(true);
         }
@@ -1047,7 +1056,7 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
                     break;
                 }
                 default: {
-                    this.parseStoreProperty(reader, address, operations);
+                    this.parseStoreElement(reader, address, operations);
                 }
             }
         }
@@ -1250,10 +1259,14 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
     }
 
     private void parseStoreElement(XMLExtendedStreamReader reader, PathAddress storeAddress, Map<PathAddress, ModelNode> operations) throws XMLStreamException {
+        ModelNode operation = operations.get(storeAddress);
+
         Element element = Element.forName(reader.getLocalName());
         switch (element) {
             case PROPERTY: {
-                this.parseStoreProperty(reader, storeAddress, operations);
+                ParseUtils.requireSingleAttribute(reader, Attribute.NAME.getLocalName());
+                String name = require(reader, Attribute.NAME);
+                StoreResourceDefinition.PROPERTIES.parseAndAddParameterElement(name, reader.getElementText(), operation, reader);
                 break;
             }
             case WRITE_BEHIND: {
@@ -1300,16 +1313,6 @@ public class InfinispanSubsystemXMLReader implements XMLElementReader<List<Model
             }
         }
         ParseUtils.requireNoContent(reader);
-    }
-
-    private void parseStoreProperty(XMLExtendedStreamReader reader, PathAddress storeAddress, Map<PathAddress, ModelNode> operations) throws XMLStreamException {
-
-        String name = require(reader, Attribute.NAME);
-        PathAddress address = storeAddress.append(StorePropertyResourceDefinition.pathElement(name));
-        ModelNode operation = Util.createAddOperation(address);
-        operations.put(address, operation);
-
-        StorePropertyResourceDefinition.VALUE.parseAndSetParameter(reader.getElementText(), operation, reader);
     }
 
     private static String require(XMLExtendedStreamReader reader, Attribute attribute) throws XMLStreamException {

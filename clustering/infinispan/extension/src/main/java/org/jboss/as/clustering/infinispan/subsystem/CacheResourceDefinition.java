@@ -25,7 +25,8 @@ package org.jboss.as.clustering.infinispan.subsystem;
 import java.util.NoSuchElementException;
 
 import org.infinispan.configuration.cache.Index;
-import org.jboss.as.clustering.controller.AttributeMarshallerFactory;
+import org.jboss.as.clustering.controller.AttributeMarshallers;
+import org.jboss.as.clustering.controller.MetricHandler;
 import org.jboss.as.clustering.controller.validation.ModuleIdentifierValidator;
 import org.jboss.as.controller.AttributeDefinition;
 import org.jboss.as.controller.ModelVersion;
@@ -83,7 +84,7 @@ public class CacheResourceDefinition extends SimpleResourceDefinition {
 
     static final SimpleMapAttributeDefinition INDEXING_PROPERTIES = new SimpleMapAttributeDefinition.Builder(ModelKeys.INDEXING_PROPERTIES, true)
             .setAllowExpression(true)
-            .setAttributeMarshaller(AttributeMarshallerFactory.createPropertyListAttributeMarshaller())
+            .setAttributeMarshaller(AttributeMarshallers.PROPERTY_LIST)
             .build();
 
     static final SimpleAttributeDefinition JNDI_NAME = new SimpleAttributeDefinitionBuilder(ModelKeys.JNDI_NAME, ModelType.STRING, true)
@@ -92,6 +93,7 @@ public class CacheResourceDefinition extends SimpleResourceDefinition {
             .setFlags(AttributeAccess.Flag.RESTART_ALL_SERVICES)
             .build();
 
+    @Deprecated
     static final SimpleAttributeDefinition START = new SimpleAttributeDefinitionBuilder(ModelKeys.START, ModelType.STRING, true)
             .setXmlName(Attribute.START.getLocalName())
             .setAllowExpression(true)
@@ -137,20 +139,12 @@ public class CacheResourceDefinition extends SimpleResourceDefinition {
             builder.setCustomResourceTransformer(batchingTransformer);
         }
 
-        if (InfinispanModel.VERSION_2_0_0.requiresTransformation(version)) {
+        if (InfinispanModel.VERSION_1_5_0.requiresTransformation(version)) {
             builder.getAttributeBuilder()
                     .setDiscard(new DiscardAttributeChecker.DiscardAttributeValueChecker(false, false, new ModelNode(true)), STATISTICS_ENABLED)
                     .addRejectCheck(RejectAttributeChecker.UNDEFINED, STATISTICS_ENABLED)
                     .addRejectCheck(RejectAttributeChecker.SIMPLE_EXPRESSIONS, STATISTICS_ENABLED)
                     .addRejectCheck(new RejectAttributeChecker.SimpleRejectAttributeChecker(new ModelNode(false)), STATISTICS_ENABLED);
-        }
-
-        if (InfinispanModel.VERSION_1_4_0.requiresTransformation(version)) {
-            // The following attributes now support expressions
-            builder.getAttributeBuilder()
-                    .addRejectCheck(RejectAttributeChecker.SIMPLE_EXPRESSIONS, BATCHING, INDEXING, JNDI_NAME, MODULE, START)
-                    .setDiscard(DiscardAttributeChecker.UNDEFINED, INDEXING_PROPERTIES)
-                    .addRejectCheck(RejectAttributeChecker.DEFINED, INDEXING_PROPERTIES);
         }
 
         LockingResourceDefinition.buildTransformation(version, builder);
@@ -183,10 +177,7 @@ public class CacheResourceDefinition extends SimpleResourceDefinition {
         }
 
         if (this.allowRuntimeOnlyRegistration) {
-            OperationStepHandler handler = new CacheMetricsHandler();
-            for (CacheMetric metric: CacheMetric.values()) {
-                registration.registerMetric(metric.getDefinition(), handler);
-            }
+            new MetricHandler<>(new CacheMetricExecutor(), CacheMetric.class).register(registration);
         }
     }
 

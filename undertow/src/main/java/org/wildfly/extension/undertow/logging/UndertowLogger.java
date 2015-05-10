@@ -172,7 +172,7 @@ public interface UndertowLogger extends BasicLogger {
     // XMLStreamException unknownHandler(String name, @Param Location location);
 
     @Message(id = 27, value = "Failed to parse XML descriptor %s at [%s,%s]")
-    String failToParseXMLDescriptor(String xmlFile, int line, int column);
+    String failToParseXMLDescriptor(String xmlFile, Integer line, Integer column);
 
     @Message(id = 28, value = "Failed to parse XML descriptor %s")
     String failToParseXMLDescriptor(String xmlFile);
@@ -309,4 +309,7 @@ public interface UndertowLogger extends BasicLogger {
     @LogMessage(level = ERROR)
     @Message(id = 71, value = "Jetty ALPN not found. HTTP2 and SPDY are not available. Please make sure Jetty ALPN is on the boot class path.")
     void alpnNotFound();
+
+    @Message(id = 72, value = "Could not find configured external path %s")
+    DeploymentUnitProcessingException couldNotFindExternalPath(File path);
 }

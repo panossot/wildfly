@@ -31,11 +31,13 @@ import org.jboss.as.controller.PathElement;
 import org.jboss.as.ee.component.ComponentRegistry;
 import org.jboss.as.ee.component.EEModuleDescription;
 import org.jboss.as.security.deployment.AbstractSecurityDeployer;
+import org.jboss.as.security.deployment.SecurityAttachments;
 import org.jboss.as.security.plugins.SecurityDomainContext;
 import org.jboss.as.security.service.JaccService;
 import org.jboss.as.security.service.SecurityDomainService;
 import org.jboss.as.server.deployment.Attachments;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
+import org.jboss.as.server.deployment.DeploymentResourceSupport;
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
 import org.jboss.as.server.deployment.DeploymentUnitProcessor;
@@ -205,6 +207,7 @@ public class UndertowDeploymentProcessor implements DeploymentUnitProcessor {
 
         final String pathName = pathNameOfDeployment(deploymentUnit, metaData);
 
+        boolean securityEnabled = deploymentUnit.hasAttachment(SecurityAttachments.SECURITY_ENABLED);
 
         String metaDataSecurityDomain = metaData.getSecurityDomain();
         if (metaDataSecurityDomain == null) {
@@ -214,8 +217,13 @@ public class UndertowDeploymentProcessor implements DeploymentUnitProcessor {
             metaDataSecurityDomain = metaDataSecurityDomain.trim();
         }
 
-        String securityDomain = metaDataSecurityDomain == null ? SecurityConstants.DEFAULT_APPLICATION_POLICY : SecurityUtil
-                .unprefixSecurityDomain(metaDataSecurityDomain);
+        final String securityDomain;
+        if(securityEnabled) {
+            securityDomain = metaDataSecurityDomain == null ? SecurityConstants.DEFAULT_APPLICATION_POLICY : SecurityUtil
+                    .unprefixSecurityDomain(metaDataSecurityDomain);
+        } else {
+            securityDomain = null;
+        }
 
         String serverInstanceName = metaData.getServerInstanceName() == null ? defaultServer : metaData.getServerInstanceName();
         final ServiceName deploymentServiceName = UndertowService.deploymentServiceName(serverInstanceName, hostName, pathName);
@@ -269,16 +277,19 @@ public class UndertowDeploymentProcessor implements DeploymentUnitProcessor {
                 .setExplodedDeployment(ExplodedDeploymentMarker.isExplodedDeployment(deploymentUnit))
                 .setWebSocketDeploymentInfo(deploymentUnit.getAttachment(UndertowAttachments.WEB_SOCKET_DEPLOYMENT_INFO))
                 .setTempDir(warMetaData.getTempDir())
+                .setExternalResources(deploymentUnit.getAttachmentList(UndertowAttachments.EXTERNAL_RESOURCES))
                 .createUndertowDeploymentInfoService();
 
         final ServiceName deploymentInfoServiceName = deploymentServiceName.append(UndertowDeploymentInfoService.SERVICE_NAME);
         ServiceBuilder<DeploymentInfo> infoBuilder = serviceTarget.addService(deploymentInfoServiceName, undertowDeploymentInfoService)
                 .addDependency(UndertowService.SERVLET_CONTAINER.append(defaultContainer), ServletContainerService.class, undertowDeploymentInfoService.getContainer())
-                .addDependency(SecurityDomainService.SERVICE_NAME.append(securityDomain), SecurityDomainContext.class, undertowDeploymentInfoService.getSecurityDomainContextValue())
                 .addDependency(UndertowService.UNDERTOW, UndertowService.class, undertowDeploymentInfoService.getUndertowService())
                 .addDependencies(deploymentUnit.getAttachmentList(Attachments.WEB_DEPENDENCIES))
                 .addDependency(hostServiceName, Host.class, undertowDeploymentInfoService.getHost())
                 .addDependencies(additionalDependencies);
+        if(securityDomain != null) {
+            infoBuilder.addDependency(SecurityDomainService.SERVICE_NAME.append(securityDomain), SecurityDomainContext.class, undertowDeploymentInfoService.getSecurityDomainContextValue());
+        }
 
         if(RequestControllerActivationMarker.isRequestControllerEnabled(deploymentUnit)){
             String topLevelName;
@@ -340,20 +351,22 @@ public class UndertowDeploymentProcessor implements DeploymentUnitProcessor {
 
 
         // adding JACC service
-        AbstractSecurityDeployer<WarMetaData> deployer = new WarJACCDeployer();
-        JaccService<WarMetaData> jaccService = deployer.deploy(deploymentUnit, jaccContextId);
-        if (jaccService != null) {
-            final ServiceName jaccServiceName = deploymentUnit.getServiceName().append(JaccService.SERVICE_NAME);
-            ServiceBuilder<?> jaccBuilder = serviceTarget.addService(jaccServiceName, jaccService);
-            if (deploymentUnit.getParent() != null) {
-                // add dependency to parent policy
-                final DeploymentUnit parentDU = deploymentUnit.getParent();
-                jaccBuilder.addDependency(parentDU.getServiceName().append(JaccService.SERVICE_NAME), PolicyConfiguration.class,
-                        jaccService.getParentPolicyInjector());
+        if(securityEnabled) {
+            AbstractSecurityDeployer<WarMetaData> deployer = new WarJACCDeployer();
+            JaccService<WarMetaData> jaccService = deployer.deploy(deploymentUnit, jaccContextId);
+            if (jaccService != null) {
+                final ServiceName jaccServiceName = deploymentUnit.getServiceName().append(JaccService.SERVICE_NAME);
+                ServiceBuilder<?> jaccBuilder = serviceTarget.addService(jaccServiceName, jaccService);
+                if (deploymentUnit.getParent() != null) {
+                    // add dependency to parent policy
+                    final DeploymentUnit parentDU = deploymentUnit.getParent();
+                    jaccBuilder.addDependency(parentDU.getServiceName().append(JaccService.SERVICE_NAME), PolicyConfiguration.class,
+                            jaccService.getParentPolicyInjector());
+                }
+                // add dependency to web deployment service
+                jaccBuilder.addDependency(deploymentServiceName);
+                jaccBuilder.setInitialMode(Mode.PASSIVE).install();
             }
-            // add dependency to web deployment service
-            jaccBuilder.addDependency(deploymentServiceName);
-            jaccBuilder.setInitialMode(Mode.PASSIVE).install();
         }
 
 
@@ -367,7 +380,8 @@ public class UndertowDeploymentProcessor implements DeploymentUnitProcessor {
         }
 
         // Process the web related mgmt information
-        final ModelNode node = deploymentUnit.getDeploymentSubsystemModel(UndertowExtension.SUBSYSTEM_NAME);
+        final DeploymentResourceSupport deploymentResourceSupport = deploymentUnit.getAttachment(Attachments.DEPLOYMENT_RESOURCE_SUPPORT);
+        final ModelNode node = deploymentResourceSupport.getDeploymentSubsystemModel(UndertowExtension.SUBSYSTEM_NAME);
         node.get(DeploymentDefinition.CONTEXT_ROOT.getName()).set("".equals(pathName) ? "/" : pathName);
         node.get(DeploymentDefinition.VIRTUAL_HOST.getName()).set(hostName);
         node.get(DeploymentDefinition.SERVER.getName()).set(serverInstanceName);
@@ -429,10 +443,11 @@ public class UndertowDeploymentProcessor implements DeploymentUnitProcessor {
 
     //todo move to UndertowDeploymentService and use all registered servlets from Deployment instead of just one found by metadata
     void processManagement(final DeploymentUnit unit, JBossWebMetaData metaData) {
+        final DeploymentResourceSupport deploymentResourceSupport = unit.getAttachment(Attachments.DEPLOYMENT_RESOURCE_SUPPORT);
         for (final JBossServletMetaData servlet : metaData.getServlets()) {
             try {
                 final String name = servlet.getName();
-                final ModelNode node = unit.createDeploymentSubModel(UndertowExtension.SUBSYSTEM_NAME, PathElement.pathElement("servlet", name));
+                final ModelNode node = deploymentResourceSupport.getDeploymentSubModel(UndertowExtension.SUBSYSTEM_NAME, PathElement.pathElement("servlet", name));
                 node.get("servlet-class").set(servlet.getServletClass());
                 node.get("servlet-name").set(servlet.getServletName());
             } catch (Exception e) {

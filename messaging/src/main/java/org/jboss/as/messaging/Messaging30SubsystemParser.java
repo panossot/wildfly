@@ -45,18 +45,6 @@ public class Messaging30SubsystemParser extends Messaging20SubsystemParser {
     }
 
     @Override
-    protected void handleUnknownConfigurationAttribute(XMLExtendedStreamReader reader, Element element, ModelNode operation) throws XMLStreamException {
-        switch (element) {
-            case OVERRIDE_IN_VM_SECURITY:
-                handleElementText(reader, element, operation);
-                break;
-            default: {
-                super.handleUnknownConfigurationAttribute(reader, element, operation);
-            }
-        }
-    }
-
-    @Override
     protected void handleUnknownAddressSetting(XMLExtendedStreamReader reader, Element element, ModelNode addressSettingsAdd) throws XMLStreamException {
         switch (element) {
             case MAX_REDELIVERY_DELAY:

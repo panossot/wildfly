@@ -55,10 +55,13 @@ import org.jboss.as.naming.ServiceBasedNamingStore;
 import org.jboss.as.naming.deployment.ContextNames;
 import org.jboss.as.naming.service.BinderService;
 import org.jboss.as.naming.service.NamingService;
+import org.jboss.as.security.deployment.SecurityAttachments;
 import org.jboss.as.security.service.SubjectFactoryService;
 import org.jboss.as.server.Services;
+import org.jboss.as.server.deployment.Attachments;
 import org.jboss.as.server.deployment.DeploymentModelUtils;
 import org.jboss.as.server.deployment.DeploymentPhaseContext;
+import org.jboss.as.server.deployment.DeploymentResourceSupport;
 import org.jboss.as.server.deployment.DeploymentUnit;
 import org.jboss.as.server.deployment.DeploymentUnitProcessingException;
 import org.jboss.as.server.deployment.DeploymentUnitProcessor;
@@ -116,6 +119,7 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
 
         final List<DataSources> dataSourcesList = deploymentUnit.getAttachmentList(DsXmlDeploymentParsingProcessor.DATA_SOURCES_ATTACHMENT_KEY);
 
+        final boolean securityEnabled = phaseContext.getDeploymentUnit().hasAttachment(SecurityAttachments.SECURITY_ENABLED);
 
         for(DataSources dataSources : dataSourcesList) {
             if (dataSources.getDrivers() != null && dataSources.getDrivers().size() > 0) {
@@ -136,7 +140,7 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                             final PathAddress addr = getDataSourceAddress(dsName, deploymentUnit, false);
                             installManagementModel(ds, deploymentUnit, addr);
                             startDataSource(lds, jndiName, ds.getDriver(), serviceTarget,
-                                    getRegistration(false, deploymentUnit), getResource(dsName, false, deploymentUnit), dsName);
+                                    getRegistration(false, deploymentUnit), getResource(dsName, false, deploymentUnit), dsName, securityEnabled);
                         } catch (Exception e) {
                             throw ConnectorLogger.ROOT_LOGGER.exceptionDeployingDatasource(e, ds.getJndiName());
                         }
@@ -158,7 +162,7 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                             final PathAddress addr = getDataSourceAddress(dsName, deploymentUnit, true);
                             installManagementModel(xads, deploymentUnit, addr);
                             startDataSource(xds, jndiName, xads.getDriver(), serviceTarget,
-                                    getRegistration(true, deploymentUnit), getResource(dsName, true, deploymentUnit), dsName);
+                                    getRegistration(true, deploymentUnit), getResource(dsName, true, deploymentUnit), dsName, securityEnabled);
 
                         } catch (Exception e) {
                             throw ConnectorLogger.ROOT_LOGGER.exceptionDeployingDatasource(e, xads.getJndiName());
@@ -174,11 +178,12 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
 
     private void installManagementModel(final DataSource ds, final DeploymentUnit deploymentUnit, final PathAddress addr) {
         XMLDataSourceRuntimeHandler.INSTANCE.registerDataSource(addr, ds);
-        deploymentUnit.createDeploymentSubModel(DataSourcesExtension.SUBSYSTEM_NAME, addr.getLastElement());
+        final DeploymentResourceSupport deploymentResourceSupport = deploymentUnit.getAttachment(Attachments.DEPLOYMENT_RESOURCE_SUPPORT);
+        deploymentResourceSupport.getDeploymentSubModel(DataSourcesExtension.SUBSYSTEM_NAME, addr.getLastElement());
         if (ds.getConnectionProperties() != null) {
             for (final Map.Entry<String, String> prop : ds.getConnectionProperties().entrySet()) {
                 PathAddress registration = PathAddress.pathAddress(addr.getLastElement(), PathElement.pathElement(CONNECTION_PROPERTIES, prop.getKey()));
-                createDeploymentSubModel(registration, deploymentUnit);
+                deploymentResourceSupport.getDeploymentSubModel(DataSourcesExtension.SUBSYSTEM_NAME, registration);
             }
         }
     }
@@ -186,11 +191,12 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
 
     private void installManagementModel(final XaDataSource ds, final DeploymentUnit deploymentUnit, final PathAddress addr) {
         XMLXaDataSourceRuntimeHandler.INSTANCE.registerDataSource(addr, ds);
-        deploymentUnit.createDeploymentSubModel(DataSourcesExtension.SUBSYSTEM_NAME, addr.getLastElement());
+        final DeploymentResourceSupport deploymentResourceSupport = deploymentUnit.getAttachment(Attachments.DEPLOYMENT_RESOURCE_SUPPORT);
+        deploymentResourceSupport.getDeploymentSubModel(DataSourcesExtension.SUBSYSTEM_NAME, addr.getLastElement());
         if (ds.getXaDataSourceProperty() != null) {
             for (final Map.Entry<String, String> prop : ds.getXaDataSourceProperty().entrySet()) {
                 PathAddress registration = PathAddress.pathAddress(addr.getLastElement(), PathElement.pathElement(XA_CONNECTION_PROPERTIES, prop.getKey()));
-                createDeploymentSubModel(registration, deploymentUnit);
+                deploymentResourceSupport.getDeploymentSubModel(DataSourcesExtension.SUBSYSTEM_NAME, registration);
             }
         }
     }
@@ -271,7 +277,7 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                                  final ServiceTarget serviceTarget,
                                  final ManagementResourceRegistration registration,
                                  final Resource resource,
-                                 final String managementName) {
+                                 final String managementName, boolean securityEnabled) {
 
 
         final ServiceName dataSourceServiceName = AbstractDataSourceService.SERVICE_NAME_BASE.append(jndiName);
@@ -286,11 +292,15 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
                         dataSourceService.getTransactionIntegrationInjector())
                 .addDependency(ConnectorServices.MANAGEMENT_REPOSITORY_SERVICE, ManagementRepository.class,
                         dataSourceService.getManagementRepositoryInjector())
-                .addDependency(SubjectFactoryService.SERVICE_NAME, SubjectFactory.class,
-                        dataSourceService.getSubjectFactoryInjector())
                 .addDependency(ConnectorServices.CCM_SERVICE, CachedConnectionManager.class, dataSourceService.getCcmInjector())
                 .addDependency(ConnectorServices.JDBC_DRIVER_REGISTRY_SERVICE, DriverRegistry.class,
                         dataSourceService.getDriverRegistryInjector()).addDependency(NamingService.SERVICE_NAME);
+
+        if(securityEnabled) {
+
+            dataSourceServiceBuilder.addDependency(SubjectFactoryService.SERVICE_NAME, SubjectFactory.class,
+                    dataSourceService.getSubjectFactoryInjector());
+        }
 
         //Register an empty override model regardless of we're enabled or not - the statistics listener will add the relevant childresources
         if (registration.isAllowsOverride()) {
@@ -359,23 +369,6 @@ public class DsXmlDeploymentInstallProcessor implements DeploymentUnitProcessor 
             elements.add(PathElement.pathElement(DATA_SOURCE, jndiName));
         }
         return PathAddress.pathAddress(elements);
-    }
-
-
-    static ManagementResourceRegistration createDeploymentSubModel(final PathAddress address, final DeploymentUnit unit) {
-        final Resource root = unit.getAttachment(DeploymentModelUtils.DEPLOYMENT_RESOURCE);
-        synchronized (root) {
-            final ManagementResourceRegistration registration = unit.getAttachment(DeploymentModelUtils.MUTABLE_REGISTRATION_ATTACHMENT);
-            final PathAddress subsystemAddress = PathAddress.pathAddress(PathElement.pathElement(ModelDescriptionConstants.SUBSYSTEM, DataSourcesExtension.SUBSYSTEM_NAME));
-            final Resource subsystem = getOrCreate(root, subsystemAddress);
-
-            final ManagementResourceRegistration subModel = registration.getSubModel(subsystemAddress.append(address));
-            if (subModel == null) {
-                throw new IllegalStateException(address.toString());
-            }
-            getOrCreate(subsystem, address);
-            return subModel;
-        }
     }
 
     static Resource getOrCreate(final Resource parent, final PathAddress address) {
