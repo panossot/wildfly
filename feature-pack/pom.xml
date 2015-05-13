@@ -357,6 +357,26 @@
         </dependency>
 
         <dependency>
+            <groupId>org.jboss.metrics</groupId>
+            <artifactId>AutomatedMetrics</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.metrics</groupId>
+            <artifactId>AutomatedMetricsApi</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.metrics</groupId>
+            <artifactId>JbossAutomatedMetricsLibray</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.metrics</groupId>
+            <artifactId>JBossAutomatedMetricsProperties</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.jboss.openjdk-orb</groupId>
             <artifactId>openjdk-orb</artifactId>
         </dependency>
@@ -1927,6 +1947,18 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
+        <dependency>
+            <groupId>org.wildfly</groupId>
+            <artifactId>wildfly-automated-metrics</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
 
         <dependency>
             <groupId>org.wildfly.core</groupId>
