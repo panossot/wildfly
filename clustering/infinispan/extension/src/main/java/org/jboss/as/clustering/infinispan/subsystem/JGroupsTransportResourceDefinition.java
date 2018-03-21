@@ -36,6 +36,7 @@ import org.jboss.as.clustering.infinispan.InfinispanLogger;
 import org.jboss.as.clustering.jgroups.subsystem.ChannelResourceDefinition;
 import org.jboss.as.clustering.jgroups.subsystem.JGroupsSubsystemResourceDefinition;
 import org.jboss.as.controller.AttributeDefinition;
+import org.jboss.as.controller.CapabilityReferenceRecorder;
 import org.jboss.as.controller.ModelVersion;
 import org.jboss.as.controller.PathAddress;
 import org.jboss.as.controller.PathElement;
@@ -93,17 +94,14 @@ public class JGroupsTransportResourceDefinition extends TransportResourceDefinit
         private final RuntimeCapability<Void> definition;
 
         Capability(UnaryRequirement requirement) {
-            this.definition = new UnaryRequirementCapability(requirement).getDefinition();
+            this.definition = new UnaryRequirementCapability(requirement, UnaryOperator.identity(),
+                    address -> new String[] {address.getParent().getLastElement().getValue()})
+                            .getDefinition();
         }
 
         @Override
         public RuntimeCapability<Void> getDefinition() {
             return this.definition;
-        }
-
-        @Override
-        public RuntimeCapability<?> resolve(PathAddress address) {
-            return this.definition.fromBaseCapability(address.getParent().getLastElement().getValue());
         }
     }
 
@@ -286,6 +284,8 @@ public class JGroupsTransportResourceDefinition extends TransportResourceDefinit
                 .addAttributes(ExecutorAttribute.class)
                 .addAttributes(DeprecatedAttribute.class)
                 .addCapabilities(Capability.class)
+                .addResourceCapabilityReference(new CapabilityReferenceRecorder.ResourceCapabilityReferenceRecorder(address -> new String[] {address.getParent().getLastElement().getValue()}, "org.wildfly.clustering.group",
+                         "org.wildfly.clustering.jgroups.default-channel-factory"), address -> null)
             , new JGroupsTransportServiceHandler());
     }
 
